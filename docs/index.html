@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhysicsMotionAnalyzer — Web</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #23273a;
+    --accent: #4f8ef7;
+    --accent2: #7c3aed;
+    --green: #10b981;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --border: #2d3148;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .logo { font-size: 1.5rem; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+  .subtitle { color: var(--muted); font-size: 0.85rem; }
+  .badge { background: var(--accent2); color: #fff; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; margin-left: auto; }
+
+  nav { display: flex; gap: 4px; padding: 16px 32px 0; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .tab {
+    padding: 10px 22px; cursor: pointer; border-radius: var(--radius) var(--radius) 0 0;
+    font-size: 0.92rem; font-weight: 500; color: var(--muted);
+    border: 1px solid transparent; border-bottom: none;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active { color: var(--accent); background: var(--bg); border-color: var(--border); }
+
+  .page { display: none; padding: 28px 32px; max-width: 1100px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 6px; }
+  .desc { color: var(--muted); font-size: 0.88rem; margin-bottom: 22px; }
+
+  .grid2 { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .card-title { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 14px; }
+
+  label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 5px; margin-top: 12px; }
+  label:first-of-type { margin-top: 0; }
+  input[type=number], input[type=text], select {
+    width: 100%; padding: 8px 12px; border-radius: 7px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-size: 0.9rem; outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  input[readonly] { opacity: 0.6; cursor: not-allowed; }
+  input.unknown { border-color: var(--yellow); background: #2a2210; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 20px; border-radius: 7px; font-size: 0.9rem;
+    font-weight: 600; cursor: pointer; border: none; transition: all 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #3b7ae8; }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover { background: #059669; }
+  .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn-outline:hover { background: var(--surface2); }
+  .btn-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .seg-btn {
+    padding: 6px 14px; border-radius: 20px; font-size: 0.83rem;
+    font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--muted); transition: all 0.15s;
+  }
+  .seg-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .seg-btn:hover:not(.active) { color: var(--text); }
+
+  .chart-wrap { position: relative; height: 220px; margin-bottom: 16px; }
+  .chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+  .stat {
+    background: var(--surface2); border-radius: 8px; padding: 12px 14px;
+    border-left: 3px solid var(--accent);
+  }
+  .stat.green { border-color: var(--green); }
+  .stat.yellow { border-color: var(--yellow); }
+  .stat.red { border-color: var(--red); }
+  .stat-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat-value { font-size: 1.2rem; font-weight: 700; margin-top: 2px; }
+
+  .badge-tipo {
+    display: inline-block; padding: 4px 12px; border-radius: 20px;
+    font-size: 0.82rem; font-weight: 700; margin-top: 8px;
+  }
+  .badge-MRU { background: #1e3a5f; color: #60a5fa; }
+  .badge-MRUV { background: #2d1b5e; color: #a78bfa; }
+  .badge-libre { background: #1a3a2a; color: #34d399; }
+
+  .result-box {
+    background: var(--surface2); border-radius: var(--radius);
+    padding: 18px; border: 1px solid var(--border); margin-top: 16px;
+  }
+  .result-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+  .result-row:last-child { border-bottom: none; }
+  .result-key { color: var(--muted); }
+  .result-val { font-weight: 600; font-family: 'Courier New', monospace; }
+  .result-val.solved { color: var(--yellow); }
+
+  .eq-box {
+    background: #0d1929; border: 1px solid #1e3a5f;
+    border-radius: 8px; padding: 12px 16px; font-family: 'Courier New', monospace;
+    font-size: 0.92rem; color: #93c5fd; margin-top: 14px;
+    line-height: 1.8;
+  }
+
+  .error-box {
+    background: #2d1515; border: 1px solid var(--red);
+    border-radius: 8px; padding: 12px 16px; font-size: 0.88rem;
+    color: #fca5a5; margin-top: 12px;
+  }
+
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  .slider-val { min-width: 48px; text-align: right; font-size: 0.85rem; font-weight: 600; color: var(--accent); }
+
+  .textarea-data {
+    width: 100%; min-height: 90px; padding: 10px 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 7px; color: var(--text); font-family: 'Courier New', monospace;
+    font-size: 0.82rem; resize: vertical; outline: none;
+  }
+  .textarea-data:focus { border-color: var(--accent); }
+
+  .anim-canvas { width: 100%; height: 180px; background: var(--surface2); border-radius: 8px; border: 1px solid var(--border); display: block; }
+
+  .type-icon { font-size: 1.8rem; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 1.5s infinite; display: inline-block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">⚛ PhysicsMotionAnalyzer</div>
+    <div class="subtitle">Universidad Mariano Gálvez de Guatemala · Física I · Ingeniería en Sistemas</div>
+  </div>
+  <div class="badge">Versión Web</div>
+</header>
+
+<nav>
+  <div class="tab active" onclick="switchTab('camera', event)">📷 Cámara</div>
+  <div class="tab" onclick="switchTab('video', event)">📁 Video</div>
+  <div class="tab" onclick="switchTab('sim', event)">🧪 Simulador</div>
+  <div class="tab" onclick="switchTab('solver', event)">🧮 Solucionador</div>
+  <div class="tab" onclick="switchTab('validator', event)">📊 Validador</div>
+  <div class="tab" onclick="switchTab('qr', event)">📱 QR</div>
+</nav>
+
+<!-- ═══════════════════ QR ═══════════════════ -->
+<div id="tab-qr" class="page">
+  <h2>Código QR</h2>
+  <p class="desc">Escanea el QR con tu celular para abrir esta aplicación. Si la sirves en red local, ingresa la URL manualmente.</p>
+
+  <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
+    <div class="card" style="max-width:360px;flex:1">
+      <div class="card-title">URL de destino</div>
+      <label>Enlace a codificar</label>
+      <input type="text" id="qr-url" placeholder="https://..." style="margin-bottom:12px">
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="generarQR()">⚡ Generar QR</button>
+        <button class="btn btn-outline" onclick="usarURLActual()">Usar URL actual</button>
+      </div>
+      <div style="margin-top:16px;font-size:0.82rem;color:var(--muted);line-height:1.6">
+        <b style="color:var(--text)">Cómo compartir en red local:</b><br>
+        1. Abre una terminal en la carpeta <code style="color:var(--accent)">web/</code><br>
+        2. Ejecuta: <code style="color:var(--accent)">python -m http.server 8080</code><br>
+        3. Tu URL será: <code style="color:var(--accent)">http://&lt;tu-IP&gt;:8080</code><br>
+        4. Pégala arriba y genera el QR
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:center">
+      <div class="card-title" style="width:100%">QR generado</div>
+      <div id="qr-box" style="background:#fff;padding:18px;border-radius:12px;margin:12px auto;display:inline-block">
+        <div id="qr-canvas" style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:0.85rem">
+          Ingresa una URL y pulsa Generar
+        </div>
+      </div>
+      <div id="qr-label" style="color:var(--muted);font-size:0.8rem;margin-top:6px;text-align:center;max-width:260px;word-break:break-all"></div>
+      <button id="qr-download-btn" class="btn btn-green" style="margin-top:14px;display:none" onclick="descargarQR()">↓ Descargar PNG</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ CÁMARA ═══════════════════ -->
+<div id="tab-camera" class="page active">
+  <h2>Cámara en vivo</h2>
+  <p class="desc">Capturá movimiento en tiempo real con la cámara de tu celular o webcam. Click sobre el objeto para fijarlo y seguirlo.</p>
+
+  <div class="grid2">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">Control de cámara</div>
+        <div class="btn-row">
+          <button class="btn btn-green" id="cam-start-btn" onclick="iniciarCamara()">▶ Iniciar cámara</button>
+          <button class="btn btn-outline" onclick="detenerCamara()">■ Detener</button>
+        </div>
+        <div id="cam-error" class="error-box" style="display:none;margin-top:10px"></div>
+
+        <label style="margin-top:14px">Color preset</label>
+        <div class="seg" id="cam-presets">
+          <div class="seg-btn active" onclick="setCamPreset('Naranja',this)">🟠 Naranja</div>
+          <div class="seg-btn" onclick="setCamPreset('Rojo',this)">🔴 Rojo</div>
+          <div class="seg-btn" onclick="setCamPreset('Verde',this)">🟢 Verde</div>
+          <div class="seg-btn" onclick="setCamPreset('Azul',this)">🔵 Azul</div>
+          <div class="seg-btn" onclick="setCamPreset('Amarillo',this)">🟡 Amarillo</div>
+          <div class="seg-btn" onclick="setCamPreset('Magenta',this)">🟣 Magenta</div>
+        </div>
+
+        <label>Tipo de movimiento</label>
+        <div class="seg">
+          <div class="seg-btn" onclick="setCamTipo('MRU',this)">MRU</div>
+          <div class="seg-btn active" onclick="setCamTipo('MRUV',this)">MRUV</div>
+          <div class="seg-btn" onclick="setCamTipo('Caída Libre',this)">Caída Libre</div>
+        </div>
+
+        <label>Calibración (píxeles por metro)</label>
+        <input type="number" id="cam-ppm" value="100" step="10">
+
+        <div style="margin-top:14px;font-size:0.82rem;color:var(--muted);line-height:1.5">
+          💡 <b>Click sobre el video</b> para fijar el objeto y capturar su color (modo lock-on).
+        </div>
+      </div>
+
+      <div class="card" id="cam-stats" style="display:none">
+        <div class="card-title">Resultados en vivo <span class="live-dot"></span></div>
+        <div id="cam-tipo-badge"></div>
+        <div class="stat-grid">
+          <div class="stat green"><div class="stat-label">Velocidad</div><div class="stat-value" id="cam-v">—</div></div>
+          <div class="stat yellow"><div class="stat-label">Aceleración</div><div class="stat-value" id="cam-a">—</div></div>
+          <div class="stat"><div class="stat-label">Distancia</div><div class="stat-value" id="cam-dist">—</div></div>
+          <div class="stat"><div class="stat-label">Tiempo</div><div class="stat-value" id="cam-t">—</div></div>
+          <div class="stat green"><div class="stat-label">Detecciones</div><div class="stat-value" id="cam-n">—</div></div>
+          <div class="stat red"><div class="stat-label">Error vs teórico</div><div class="stat-value" id="cam-err">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-title">Vista del video</div>
+        <div style="position:relative;background:#000;border-radius:8px;overflow:hidden">
+          <video id="cam-video" autoplay playsinline muted style="width:100%;display:block;max-height:480px;object-fit:contain"></video>
+          <canvas id="cam-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair"></canvas>
+        </div>
+        <canvas id="cam-process" style="display:none"></canvas>
+
+        <div style="height:14px"></div>
+        <div class="card-title">Trayectoria capturada</div>
+        <div class="chart-wrap"><canvas id="cam-chart-x"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ VIDEO ═══════════════════ -->
+<div id="tab-video" class="page">
+  <h2>Análisis de Video grabado</h2>
+  <p class="desc">Subí un video MP4 ya grabado. Hacé click sobre el objeto para fijarlo y reproducí para analizar.</p>
+
+  <div class="grid2">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">Cargar video</div>
+        <input type="file" id="vid-file" accept="video/*" onchange="cargarVideo(event)" style="margin-bottom:8px;color:var(--text)">
+        <div id="vid-info" style="font-size:0.82rem;color:var(--muted);margin-bottom:6px">(ningún archivo seleccionado)</div>
+
+        <label>Color preset</label>
+        <div class="seg">
+          <div class="seg-btn active" onclick="setVidPreset('Naranja',this)">🟠 Naranja</div>
+          <div class="seg-btn" onclick="setVidPreset('Rojo',this)">🔴 Rojo</div>
+          <div class="seg-btn" onclick="setVidPreset('Verde',this)">🟢 Verde</div>
+          <div class="seg-btn" onclick="setVidPreset('Azul',this)">🔵 Azul</div>
+        </div>
+
+        <label>Tipo de movimiento</label>
+        <div class="seg">
+          <div class="seg-btn" onclick="setVidTipo('MRU',this)">MRU</div>
+          <div class="seg-btn active" onclick="setVidTipo('MRUV',this)">MRUV</div>
+          <div class="seg-btn" onclick="setVidTipo('Caída Libre',this)">Caída Libre</div>
+        </div>
+
+        <label>Calibración (píxeles por metro)</label>
+        <input type="number" id="vid-ppm" value="100" step="10">
+
+        <div class="btn-row">
+          <button class="btn btn-green" onclick="reproducirYAnalizar()">▶ Reproducir y analizar</button>
+          <button class="btn btn-outline" onclick="pausarVideo()">⏸ Pausar</button>
+          <button class="btn btn-outline" onclick="reiniciarVideo()">⟳ Reiniciar</button>
+        </div>
+
+        <div style="margin-top:14px;font-size:0.82rem;color:var(--muted);line-height:1.5">
+          💡 <b>Pausá el video</b> en un frame donde se vea bien la pelota → <b>click</b> sobre ella para fijar el color.
+        </div>
+      </div>
+
+      <div class="card" id="vid-stats" style="display:none">
+        <div class="card-title">Resultados</div>
+        <div id="vid-tipo-badge"></div>
+        <div class="stat-grid">
+          <div class="stat green"><div class="stat-label">Velocidad</div><div class="stat-value" id="vid-v">—</div></div>
+          <div class="stat yellow"><div class="stat-label">Aceleración</div><div class="stat-value" id="vid-a">—</div></div>
+          <div class="stat"><div class="stat-label">Distancia</div><div class="stat-value" id="vid-dist">—</div></div>
+          <div class="stat"><div class="stat-label">Tiempo</div><div class="stat-value" id="vid-t">—</div></div>
+          <div class="stat green"><div class="stat-label">Detecciones</div><div class="stat-value" id="vid-n">—</div></div>
+          <div class="stat red"><div class="stat-label">Error vs teórico</div><div class="stat-value" id="vid-err">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-title">Vista del video</div>
+        <div style="position:relative;background:#000;border-radius:8px;overflow:hidden">
+          <video id="vid-video" controls playsinline style="width:100%;display:block;max-height:480px;object-fit:contain"></video>
+          <canvas id="vid-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair;pointer-events:auto"></canvas>
+        </div>
+        <canvas id="vid-process" style="display:none"></canvas>
+
+        <div style="height:14px"></div>
+        <div class="card-title">Trayectoria capturada</div>
+        <div class="chart-wrap"><canvas id="vid-chart-x"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ SIMULADOR ═══════════════════ -->
+<div id="tab-sim" class="page">
+  <h2>Simulador de Movimiento</h2>
+  <p class="desc">Genera datos cinemáticos sintéticos y visualiza posición, velocidad y aceleración en tiempo real.</p>
+
+  <div class="grid2">
+    <!-- Panel de control -->
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">Tipo de movimiento</div>
+        <div class="seg">
+          <div class="seg-btn active" onclick="setTipo('MRU',this)">MRU</div>
+          <div class="seg-btn" onclick="setTipo('MRUV',this)">MRUV</div>
+          <div class="seg-btn" onclick="setTipo('Caída Libre',this)">Caída Libre</div>
+        </div>
+
+        <label>Posición inicial x₀ (m)</label>
+        <input type="number" id="sim-x0" value="0" step="0.5">
+
+        <label>Velocidad inicial v₀ (m/s)</label>
+        <input type="number" id="sim-v0" value="5" step="0.5">
+
+        <div id="sim-a-row">
+          <label>Aceleración a (m/s²)</label>
+          <input type="number" id="sim-a" value="2" step="0.5">
+        </div>
+
+        <label>Duración (s)</label>
+        <div class="slider-row">
+          <input type="range" id="sim-dur" min="1" max="20" value="5" oninput="document.getElementById('sim-dur-val').textContent=this.value+'s'">
+          <span class="slider-val" id="sim-dur-val">5s</span>
+        </div>
+
+        <label>Ruido (m) — simula imprecisión de cámara</label>
+        <div class="slider-row">
+          <input type="range" id="sim-ruido" min="0" max="1" step="0.01" value="0" oninput="document.getElementById('sim-ruido-val').textContent=this.value+'m'">
+          <span class="slider-val" id="sim-ruido-val">0m</span>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="runSim()">▶ Simular</button>
+          <button class="btn btn-outline" onclick="clearSim()">✕ Limpiar</button>
+        </div>
+      </div>
+
+      <!-- Estadísticas -->
+      <div class="card" id="sim-stats" style="display:none">
+        <div class="card-title">Resultados</div>
+        <div id="sim-tipo-badge"></div>
+        <div class="stat-grid">
+          <div class="stat"><div class="stat-label">x máx</div><div class="stat-value" id="s-xmax">—</div></div>
+          <div class="stat green"><div class="stat-label">v promedio</div><div class="stat-value" id="s-vprom">—</div></div>
+          <div class="stat yellow"><div class="stat-label">a promedio</div><div class="stat-value" id="s-aprom">—</div></div>
+          <div class="stat"><div class="stat-label">x inicial</div><div class="stat-value" id="s-x0">—</div></div>
+          <div class="stat green"><div class="stat-label">v final</div><div class="stat-value" id="s-vfinal">—</div></div>
+          <div class="stat red"><div class="stat-label">Distancia</div><div class="stat-value" id="s-dist">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráficas -->
+    <div>
+      <div class="card">
+        <!-- Animación -->
+        <div class="card-title" style="margin-bottom:8px">Animación <span class="live-dot" id="anim-dot" style="display:none"></span></div>
+        <canvas id="anim-canvas" class="anim-canvas"></canvas>
+
+        <div style="height:12px"></div>
+        <div class="card-title">x(t) — Posición</div>
+        <div class="chart-wrap"><canvas id="chart-x"></canvas></div>
+        <div class="card-title">v(t) — Velocidad</div>
+        <div class="chart-wrap"><canvas id="chart-v"></canvas></div>
+        <div class="card-title">a(t) — Aceleración</div>
+        <div class="chart-wrap"><canvas id="chart-a"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ SOLUCIONADOR ═══════════════════ -->
+<div id="tab-solver" class="page">
+  <h2>Solucionador de Cinemática</h2>
+  <p class="desc">Ingresa los datos conocidos y deja en blanco la incógnita. El sistema la despeja automáticamente.</p>
+
+  <div class="grid2">
+    <div>
+      <div class="card">
+        <div class="card-title">Tipo de movimiento</div>
+        <div class="seg">
+          <div class="seg-btn active" onclick="setSolverTipo('MRU',this)">MRU</div>
+          <div class="seg-btn" onclick="setSolverTipo('MRUV',this)">MRUV</div>
+          <div class="seg-btn" onclick="setSolverTipo('Caída Libre',this)">Caída Libre</div>
+        </div>
+
+        <div id="solver-fields"></div>
+
+        <div class="eq-box" id="solver-eq"></div>
+
+        <div class="btn-row">
+          <button class="btn btn-green" onclick="runSolver()">⚡ Resolver</button>
+          <button class="btn btn-outline" onclick="clearSolver()">✕ Limpiar</button>
+        </div>
+
+        <div id="solver-error" class="error-box" style="display:none"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" id="solver-result-card" style="display:none">
+        <div class="card-title">Resultado</div>
+        <div id="solver-result-badge"></div>
+        <div class="result-box" id="solver-result"></div>
+
+        <div style="height:16px"></div>
+        <div class="card-title">Gráfica de posición</div>
+        <div class="chart-wrap"><canvas id="solver-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ VALIDADOR ═══════════════════ -->
+<div id="tab-validator" class="page">
+  <h2>Validador Físico</h2>
+  <p class="desc">Ingresa posiciones experimentales (separadas por comas) y compara con la curva teórica.</p>
+
+  <div class="grid2">
+    <div>
+      <div class="card">
+        <div class="card-title">Tipo de movimiento</div>
+        <div class="seg">
+          <div class="seg-btn active" onclick="setValTipo('MRU',this)">MRU</div>
+          <div class="seg-btn" onclick="setValTipo('MRUV',this)">MRUV</div>
+          <div class="seg-btn" onclick="setValTipo('Caída Libre',this)">Caída Libre</div>
+        </div>
+
+        <label>Posiciones experimentales x (m), separadas por coma</label>
+        <textarea class="textarea-data" id="val-xexp" placeholder="0, 1.02, 2.05, 3.1, 3.98, 5.03, 6.0">0, 1.02, 2.05, 3.1, 3.98, 5.03, 6.0</textarea>
+
+        <label>Intervalo de tiempo Δt entre muestras (s)</label>
+        <input type="number" id="val-dt" value="0.2" step="0.05" min="0.01">
+
+        <label>x₀ inicial (dejar 0 para estimación automática)</label>
+        <input type="number" id="val-x0" value="0">
+
+        <label>v₀ inicial (dejar 0 para estimación automática)</label>
+        <input type="number" id="val-v0" value="0">
+
+        <div id="val-a-row">
+          <label>Aceleración a (dejar 0 para estimación automática)</label>
+          <input type="number" id="val-a" value="0">
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="runValidator()">📊 Validar</button>
+          <button class="btn btn-outline" onclick="clearValidator()">✕ Limpiar</button>
+        </div>
+
+        <div id="val-error" class="error-box" style="display:none"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" id="val-result-card" style="display:none">
+        <div class="card-title">Comparación: Experimental vs Teórico</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="val-chart"></canvas></div>
+
+        <div class="stat-grid" style="margin-top:14px">
+          <div class="stat"><div class="stat-label">Error medio</div><div class="stat-value" id="val-err-medio">—</div></div>
+          <div class="stat red"><div class="stat-label">Error máximo</div><div class="stat-value" id="val-err-max">—</div></div>
+          <div class="stat green"><div class="stat-label">Ajuste</div><div class="stat-value" id="val-ajuste">—</div></div>
+        </div>
+
+        <div class="result-box" style="margin-top:14px" id="val-params"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  ESTADO GLOBAL
+// ══════════════════════════════════════════════
+let simTipo = 'MRU';
+let solverTipo = 'MRU';
+let valTipo = 'MRU';
+let charts = {};
+let animFrame = null;
+let animData = null;
+let animIdx = 0;
+
+// ══════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════
+function switchTab(id, ev) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  if (ev && ev.target) ev.target.classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+  if (id !== 'sim' && animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  // Detener cámara si cambiamos de tab
+  if (id !== 'camera' && camStream) { detenerCamara(); }
+}
+
+// ══════════════════════════════════════════════
+//  CINEMÁTICA (JS puro)
+// ══════════════════════════════════════════════
+const G = 9.8;
+
+function linspace(start, end, n) {
+  const arr = [];
+  for (let i = 0; i < n; i++) arr.push(start + (end - start) * i / (n - 1));
+  return arr;
+}
+
+function posicionMRU(x0, v, t) { return t.map(ti => x0 + v * ti); }
+function posicionMRUV(x0, v0, a, t) { return t.map(ti => x0 + v0 * ti + 0.5 * a * ti * ti); }
+function caidaLibre(y0, v0, t) { return t.map(ti => y0 + v0 * ti - 0.5 * G * ti * ti); }
+
+function derivadaCentral(x, t) {
+  const n = x.length, v = new Array(n).fill(0);
+  if (n < 2) return v;
+  v[0] = (x[1] - x[0]) / (t[1] - t[0] || 1e-9);
+  v[n-1] = (x[n-1] - x[n-2]) / (t[n-1] - t[n-2] || 1e-9);
+  for (let i = 1; i < n - 1; i++) {
+    const dt = t[i+1] - t[i-1];
+    v[i] = dt !== 0 ? (x[i+1] - x[i-1]) / dt : 0;
+  }
+  return v;
+}
+
+function segundaDerivada(x, t) {
+  const n = x.length, a = new Array(n).fill(0);
+  if (n < 3) return a;
+  for (let i = 1; i < n - 1; i++) {
+    const dt = 0.5 * (t[i+1] - t[i-1]);
+    a[i] = dt !== 0 ? (x[i+1] - 2*x[i] + x[i-1]) / (dt*dt) : 0;
+  }
+  a[0] = a[1]; a[n-1] = a[n-2];
+  return a;
+}
+
+function agregarRuido(arr, sigma) {
+  if (sigma <= 0) return arr;
+  return arr.map(v => v + (Math.random() - 0.5) * 2 * sigma * 1.7);
+}
+
+function clasificar(aArr) {
+  if (!aArr.length) return 'Desconocido';
+  const core = aArr.length > 5 ? aArr.slice(1, -1) : aArr;
+  const aProm = core.reduce((s,v)=>s+v,0) / core.length;
+  const std = Math.sqrt(core.reduce((s,v)=>s+(v-aProm)**2,0)/core.length);
+  if (Math.abs(aProm) < 0.5 && std < 1.0) return 'MRU';
+  if (Math.abs(Math.abs(aProm) - G) < 1.5) return 'Caída Libre';
+  return 'MRUV';
+}
+
+function distanciaTotal(x) {
+  let d = 0;
+  for (let i = 1; i < x.length; i++) d += Math.abs(x[i] - x[i-1]);
+  return d;
+}
+
+// ══════════════════════════════════════════════
+//  CHART HELPERS
+// ══════════════════════════════════════════════
+const CHART_DEFAULTS = {
+  responsive: true, maintainAspectRatio: false,
+  animation: { duration: 400 },
+  plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } } },
+  scales: {
+    x: { ticks: { color: '#64748b', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#1e2440' } },
+    y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e2440' } }
+  }
+};
+
+function makeChart(id, label, color, t, data, extra) {
+  if (charts[id]) { charts[id].destroy(); }
+  const ctx = document.getElementById(id).getContext('2d');
+  const datasets = [{ label, data, borderColor: color, backgroundColor: color+'22', borderWidth: 2, pointRadius: 0, tension: 0.3 }];
+  if (extra) extra.forEach(e => datasets.push(e));
+  charts[id] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: t.map(v => v.toFixed(2)), datasets },
+    options: JSON.parse(JSON.stringify(CHART_DEFAULTS))
+  });
+}
+
+// ══════════════════════════════════════════════
+//  SIMULADOR
+// ══════════════════════════════════════════════
+function setTipo(tipo, el) {
+  simTipo = tipo;
+  document.querySelectorAll('#tab-sim .seg-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('sim-a-row').style.display = tipo === 'MRU' ? 'none' : 'block';
+}
+
+function runSim() {
+  const x0 = parseFloat(document.getElementById('sim-x0').value) || 0;
+  const v0 = parseFloat(document.getElementById('sim-v0').value) || 0;
+  const a  = parseFloat(document.getElementById('sim-a').value)  || 0;
+  const dur = parseFloat(document.getElementById('sim-dur').value) || 5;
+  const ruido = parseFloat(document.getElementById('sim-ruido').value) || 0;
+  const n = Math.max(30, Math.round(dur * 30));
+  const t = linspace(0, dur, n);
+
+  let signal;
+  if (simTipo === 'MRU') signal = posicionMRU(x0, v0, t);
+  else if (simTipo === 'Caída Libre') signal = caidaLibre(0, v0, t);
+  else signal = posicionMRUV(x0, v0, a, t);
+
+  signal = agregarRuido(signal, ruido);
+  const vArr = derivadaCentral(signal, t);
+  const aArr = segundaDerivada(signal, t);
+  const tipo = clasificar(aArr);
+
+  // Estadísticas
+  document.getElementById('sim-stats').style.display = 'block';
+  const aProm = aArr.reduce((s,v)=>s+v,0)/aArr.length;
+  const vProm = vArr.reduce((s,v)=>s+v,0)/vArr.length;
+  document.getElementById('s-xmax').textContent = Math.max(...signal).toFixed(2)+' m';
+  document.getElementById('s-vprom').textContent = vProm.toFixed(2)+' m/s';
+  document.getElementById('s-aprom').textContent = aProm.toFixed(2)+' m/s²';
+  document.getElementById('s-x0').textContent = signal[0].toFixed(2)+' m';
+  document.getElementById('s-vfinal').textContent = vArr[vArr.length-1].toFixed(2)+' m/s';
+  document.getElementById('s-dist').textContent = distanciaTotal(signal).toFixed(2)+' m';
+
+  const classes = { 'MRU': 'badge-MRU', 'MRUV': 'badge-MRUV', 'Caída Libre': 'badge-libre' };
+  document.getElementById('sim-tipo-badge').innerHTML = `<span class="badge-tipo ${classes[tipo]||'badge-MRU'}">Clasificado: ${tipo}</span>`;
+
+  // Gráficas
+  makeChart('chart-x', 'x(t) [m]', '#4f8ef7', t, signal);
+  makeChart('chart-v', 'v(t) [m/s]', '#10b981', t, vArr);
+  makeChart('chart-a', 'a(t) [m/s²]', '#f59e0b', t, aArr);
+
+  // Animación
+  animData = { t, signal, tipo: simTipo, x0, v0 };
+  animIdx = 0;
+  if (animFrame) cancelAnimationFrame(animFrame);
+  document.getElementById('anim-dot').style.display = 'inline-block';
+  runAnim();
+}
+
+function runAnim() {
+  const canvas = document.getElementById('anim-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth || 600;
+  canvas.height = canvas.offsetHeight || 180;
+  const W = canvas.width, H = canvas.height;
+  const { signal, tipo, t } = animData;
+
+  const xMin = Math.min(...signal), xMax = Math.max(...signal);
+  const range = xMax - xMin || 1;
+  const pad = 20;
+
+  function toCanvasX(val) {
+    return pad + ((val - xMin) / range) * (W - 2*pad);
+  }
+  function toCanvasY(val) {
+    return H / 2 + (tipo === 'Caída Libre' ? -1 : 0) * (val * 0) + (H/2 - pad) * -(val - xMin) / range + (H/2 - pad);
+  }
+
+  function frame() {
+    ctx.clearRect(0, 0, W, H);
+    // Trail
+    ctx.strokeStyle = '#4f8ef755';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= animIdx && i < signal.length; i++) {
+      const cx = tipo === 'Caída Libre'
+        ? W / 2
+        : pad + ((signal[i] - xMin) / range) * (W - 2*pad);
+      const cy = tipo === 'Caída Libre'
+        ? pad + ((xMax - signal[i]) / range) * (H - 2*pad)
+        : H / 2;
+      if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+    }
+    ctx.stroke();
+
+    // Ball
+    const si = Math.min(animIdx, signal.length - 1);
+    const bx = tipo === 'Caída Libre'
+      ? W / 2
+      : pad + ((signal[si] - xMin) / range) * (W - 2*pad);
+    const by = tipo === 'Caída Libre'
+      ? pad + ((xMax - signal[si]) / range) * (H - 2*pad)
+      : H / 2;
+
+    ctx.beginPath();
+    ctx.arc(bx, by, 10, 0, Math.PI * 2);
+    ctx.fillStyle = '#4f8ef7';
+    ctx.fill();
+    ctx.strokeStyle = '#93c5fd';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Label
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px Segoe UI';
+    ctx.fillText(`t=${t[si].toFixed(1)}s  x=${signal[si].toFixed(2)}m`, bx + 14, by + 4);
+
+    animIdx++;
+    if (animIdx < signal.length) animFrame = requestAnimationFrame(frame);
+    else { document.getElementById('anim-dot').style.display = 'none'; animFrame = null; }
+  }
+  animFrame = requestAnimationFrame(frame);
+}
+
+function clearSim() {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  document.getElementById('anim-dot').style.display = 'none';
+  document.getElementById('sim-stats').style.display = 'none';
+  ['chart-x','chart-v','chart-a'].forEach(id => { if(charts[id]){charts[id].destroy();delete charts[id];} });
+  const canvas = document.getElementById('anim-canvas');
+  canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+}
+
+// ══════════════════════════════════════════════
+//  SOLUCIONADOR
+// ══════════════════════════════════════════════
+const SOLVER_VARS = {
+  MRU: [
+    { key:'x0', label:'x₀  posición inicial', unit:'m' },
+    { key:'v',  label:'v   velocidad',         unit:'m/s' },
+    { key:'t',  label:'t   tiempo total',      unit:'s' },
+    { key:'x_final', label:'x_f  posición final', unit:'m' },
+  ],
+  MRUV: [
+    { key:'x0', label:'x₀   posición inicial', unit:'m' },
+    { key:'v0', label:'v₀   velocidad inicial', unit:'m/s' },
+    { key:'a',  label:'a    aceleración',       unit:'m/s²' },
+    { key:'t',  label:'t    tiempo total',      unit:'s' },
+    { key:'x_final', label:'x_f  posición final', unit:'m' },
+  ],
+  'Caída Libre': [
+    { key:'y0', label:'y₀   altura inicial',   unit:'m' },
+    { key:'v0', label:'v₀   velocidad inicial (0=reposo)', unit:'m/s' },
+    { key:'t',  label:'t    tiempo',            unit:'s' },
+    { key:'y_final', label:'y_f  altura final', unit:'m' },
+  ],
+};
+
+const SOLVER_EQ = {
+  MRU: 'x_f = x₀ + v · t',
+  MRUV: 'x_f = x₀ + v₀·t + ½·a·t²\nv_f = v₀ + a·t',
+  'Caída Libre': 'y_f = y₀ + v₀·t − ½·g·t²  (g=9.8 m/s²)\nv_f = v₀ − g·t',
+};
+
+function setSolverTipo(tipo, el) {
+  solverTipo = tipo;
+  document.querySelectorAll('#tab-solver .seg-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderSolverFields();
+  document.getElementById('solver-result-card').style.display = 'none';
+  document.getElementById('solver-error').style.display = 'none';
+}
+
+function renderSolverFields() {
+  const vars = SOLVER_VARS[solverTipo];
+  let html = '';
+  vars.forEach(v => {
+    html += `<label>${v.label} <span style="color:var(--muted);font-size:0.78rem">[${v.unit}]</span></label>`;
+    html += `<input type="number" id="sf-${v.key}" placeholder="dejar vacío = incógnita" step="any">`;
+  });
+  document.getElementById('solver-fields').innerHTML = html;
+  document.getElementById('solver-eq').innerText = SOLVER_EQ[solverTipo];
+}
+
+function runSolver() {
+  document.getElementById('solver-error').style.display = 'none';
+  const vars = SOLVER_VARS[solverTipo];
+  const datos = {};
+  vars.forEach(v => {
+    const val = document.getElementById('sf-'+v.key).value.trim();
+    datos[v.key] = val === '' ? null : parseFloat(val);
+  });
+
+  let result;
+  try {
+    if (solverTipo === 'MRU') result = resolverMRU(datos);
+    else if (solverTipo === 'MRUV') result = resolverMRUV(datos);
+    else result = resolverCaidaLibre(datos);
+  } catch(e) {
+    document.getElementById('solver-error').textContent = '⚠ '+e.message;
+    document.getElementById('solver-error').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('solver-result-card').style.display = 'block';
+  const incognita = result.incognita;
+  let html = '';
+  vars.forEach(v => {
+    const val = result[v.key] != null ? result[v.key].toFixed(4) : '—';
+    const isSolved = v.key === incognita;
+    html += `<div class="result-row"><span class="result-key">${v.label} [${v.unit}]</span><span class="result-val ${isSolved?'solved':''}">${val}${isSolved?' ← calculado':''}</span></div>`;
+  });
+  if (result.v_final != null) html += `<div class="result-row"><span class="result-key">v_f  velocidad final [m/s]</span><span class="result-val">${result.v_final.toFixed(4)}</span></div>`;
+  if (result.g != null) html += `<div class="result-row"><span class="result-key">g   gravedad [m/s²]</span><span class="result-val">${result.g.toFixed(2)}</span></div>`;
+  document.getElementById('solver-result').innerHTML = html;
+
+  const classes = { 'MRU': 'badge-MRU', 'MRUV': 'badge-MRUV', 'Caída Libre': 'badge-libre' };
+  document.getElementById('solver-result-badge').innerHTML = `<span class="badge-tipo ${classes[solverTipo]}">${solverTipo}</span>`;
+
+  // Graficar x(t)
+  const t_total = result.t || 5;
+  const n = 80;
+  const tArr = linspace(0, t_total, n);
+  let xArr;
+  if (solverTipo === 'MRU') xArr = posicionMRU(result.x0||0, result.v||0, tArr);
+  else if (solverTipo === 'Caída Libre') xArr = caidaLibre(result.y0||0, result.v0||0, tArr);
+  else xArr = posicionMRUV(result.x0||0, result.v0||0, result.a||0, tArr);
+
+  makeChart('solver-chart', 'x(t) [m]', '#4f8ef7', tArr, xArr);
+}
+
+function clearSolver() {
+  renderSolverFields();
+  document.getElementById('solver-result-card').style.display = 'none';
+  document.getElementById('solver-error').style.display = 'none';
+}
+
+// Solvers
+function resolverMRU({x0, v, t, x_final}) {
+  const faltantes = [x0,v,t,x_final].filter(x=>x===null||x===undefined);
+  if (faltantes.length !== 1) throw new Error(`MRU necesita exactamente 3 de 4 datos. Tienes ${4-faltantes.length}.`);
+  if (x0===null||x0===undefined) return { x0: x_final - v*t, v, t, x_final, v_final:v, incognita:'x0', tipo:'MRU' };
+  if (v===null||v===undefined) {
+    if (t===0) throw new Error('No se puede despejar v si t = 0.');
+    return { x0, v:(x_final-x0)/t, t, x_final, v_final:(x_final-x0)/t, incognita:'v', tipo:'MRU' };
+  }
+  if (t===null||t===undefined) {
+    if (v===0) throw new Error('No se puede despejar t si v = 0.');
+    const tv = (x_final-x0)/v;
+    if (tv<0) throw new Error('Los datos producen t negativo.');
+    return { x0, v, t:tv, x_final, v_final:v, incognita:'t', tipo:'MRU' };
+  }
+  return { x0, v, t, x_final: x0+v*t, v_final:v, incognita:'x_final', tipo:'MRU' };
+}
+
+function resolverMRUV({x0, v0, a, t, x_final}) {
+  const base = {x0,v0,a,t,x_final};
+  const faltantes = Object.entries(base).filter(([,v])=>v===null||v===undefined).map(([k])=>k);
+  if (faltantes.length !== 1) throw new Error(`MRUV necesita 4 de 5 datos base. Tienes ${5-faltantes.length}.`);
+  const inc = faltantes[0];
+  let res = { ...base, incognita: inc, tipo: 'MRUV' };
+
+  if (inc==='x_final') res.x_final = x0 + v0*t + 0.5*a*t*t;
+  else if (inc==='x0')  res.x0 = x_final - v0*t - 0.5*a*t*t;
+  else if (inc==='v0') { if(t===0) throw new Error('t no puede ser 0.'); res.v0 = (x_final-x0)/t - 0.5*a*t; }
+  else if (inc==='a')  { if(t===0) throw new Error('t no puede ser 0.'); res.a = 2*(x_final-x0-v0*t)/(t*t); }
+  else if (inc==='t') {
+    const dx = x_final - x0;
+    if (Math.abs(a) < 1e-9) {
+      if (Math.abs(v0) < 1e-9) throw new Error('Con a=0 y v0=0 no hay movimiento.');
+      res.t = dx / v0;
+    } else {
+      const A=0.5*a, B=v0, C=-dx;
+      const disc = B*B - 4*A*C;
+      if (disc<0) throw new Error('No hay solución real para t.');
+      const t1=(-B+Math.sqrt(disc))/(2*A), t2=(-B-Math.sqrt(disc))/(2*A);
+      const cands = [t1,t2].filter(x=>x>0);
+      if (!cands.length) throw new Error('Las soluciones para t son negativas.');
+      res.t = Math.min(...cands);
+    }
+  }
+  res.v_final = (res.v0||0) + (res.a||0)*(res.t||0);
+  return res;
+}
+
+function resolverCaidaLibre({y0, v0, t, y_final}) {
+  if (v0===null||v0===undefined) v0 = 0;
+  const base = {y0,v0,t,y_final};
+  const faltantes = Object.entries(base).filter(([,v])=>v===null||v===undefined).map(([k])=>k);
+  if (faltantes.length !== 1) throw new Error(`Caída Libre necesita 3 de 4 datos (v₀=0 si lo dejas vacío). Tienes ${4-faltantes.length}.`);
+  const inc = faltantes[0];
+  let res = { ...base, incognita: inc, tipo:'Caída Libre', g: G };
+
+  if (inc==='y_final') res.y_final = y0 + v0*t - 0.5*G*t*t;
+  else if (inc==='y0') res.y0 = y_final - v0*t + 0.5*G*t*t;
+  else if (inc==='v0') {
+    if(t===0) throw new Error('t no puede ser 0.');
+    res.v0 = (y_final - y0 + 0.5*G*t*t)/t;
+  } else {
+    const A=-0.5*G, B=v0, C=y0-y_final;
+    const disc=B*B-4*A*C;
+    if(disc<0) throw new Error('No hay solución real para t.');
+    const t1=(-B+Math.sqrt(disc))/(2*A), t2=(-B-Math.sqrt(disc))/(2*A);
+    const cands=[t1,t2].filter(x=>x>0);
+    if(!cands.length) throw new Error('Las soluciones para t son negativas.');
+    res.t=Math.min(...cands);
+  }
+  res.v_final = (res.v0||0) - G*(res.t||0);
+  return res;
+}
+
+// ══════════════════════════════════════════════
+//  VALIDADOR
+// ══════════════════════════════════════════════
+function setValTipo(tipo, el) {
+  valTipo = tipo;
+  document.querySelectorAll('#tab-validator .seg-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('val-a-row').style.display = tipo === 'MRU' ? 'none' : 'block';
+  document.getElementById('val-result-card').style.display = 'none';
+}
+
+function runValidator() {
+  document.getElementById('val-error').style.display = 'none';
+  const raw = document.getElementById('val-xexp').value;
+  const xExp = raw.split(',').map(s=>parseFloat(s.trim())).filter(v=>!isNaN(v));
+  if (xExp.length < 3) {
+    document.getElementById('val-error').textContent = '⚠ Ingresa al menos 3 puntos separados por coma.';
+    document.getElementById('val-error').style.display = 'block';
+    return;
+  }
+  const dt = parseFloat(document.getElementById('val-dt').value) || 0.2;
+  const n = xExp.length;
+  const t = Array.from({length:n},(_,i)=>i*dt);
+
+  // Estimar parámetros
+  let x0 = parseFloat(document.getElementById('val-x0').value)||0;
+  let v0 = parseFloat(document.getElementById('val-v0').value)||0;
+  let a  = parseFloat(document.getElementById('val-a').value) ||0;
+
+  // Si todos son cero → estimar
+  if (x0===0 && v0===0 && a===0) {
+    x0 = xExp[0];
+    v0 = n>1 ? (xExp[1]-xExp[0])/dt : 0;
+    if (n>3) {
+      const aArr = segundaDerivada(xExp, t);
+      a = aArr.slice(1,-1).reduce((s,v)=>s+v,0)/(aArr.length-2);
+    }
+  }
+
+  // Teórico
+  let xTeo;
+  if (valTipo==='MRU') xTeo = posicionMRU(x0, v0, t);
+  else if (valTipo==='Caída Libre') xTeo = caidaLibre(x0, v0, t);
+  else xTeo = posicionMRUV(x0, v0, a, t);
+
+  // Errores
+  const eps = 1e-9;
+  const errors = xExp.map((ex,i)=>Math.abs(ex-xTeo[i])/(Math.abs(xTeo[i])||eps)*100);
+  const errMedio = errors.reduce((s,v)=>s+v,0)/errors.length;
+  const errMax = Math.max(...errors);
+  const ajuste = Math.max(0, 100 - errMedio);
+
+  document.getElementById('val-result-card').style.display = 'block';
+  document.getElementById('val-err-medio').textContent = errMedio.toFixed(2)+'%';
+  document.getElementById('val-err-max').textContent = errMax.toFixed(2)+'%';
+  document.getElementById('val-ajuste').textContent = ajuste.toFixed(1)+'%';
+
+  if (charts['val-chart']) charts['val-chart'].destroy();
+  const ctx = document.getElementById('val-chart').getContext('2d');
+  charts['val-chart'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: t.map(v=>v.toFixed(2)),
+      datasets: [
+        { label:'Experimental', data:xExp, borderColor:'#4f8ef7', backgroundColor:'#4f8ef722', borderWidth:2, pointRadius:4, tension:0.2 },
+        { label:'Teórico', data:xTeo, borderColor:'#ef4444', backgroundColor:'transparent', borderWidth:2, borderDash:[6,3], pointRadius:0, tension:0.3 }
+      ]
+    },
+    options: { ...JSON.parse(JSON.stringify(CHART_DEFAULTS)), responsive:true, maintainAspectRatio:false }
+  });
+
+  document.getElementById('val-params').innerHTML = `
+    <div class="result-row"><span class="result-key">Parámetros usados</span><span class="result-val"></span></div>
+    <div class="result-row"><span class="result-key">x₀ (m)</span><span class="result-val">${x0.toFixed(4)}</span></div>
+    <div class="result-row"><span class="result-key">v₀ (m/s)</span><span class="result-val">${v0.toFixed(4)}</span></div>
+    ${valTipo!=='MRU'?`<div class="result-row"><span class="result-key">a (m/s²)</span><span class="result-val">${a.toFixed(4)}</span></div>`:''}
+    <div class="result-row"><span class="result-key">N puntos</span><span class="result-val">${n}</span></div>
+  `;
+}
+
+function clearValidator() {
+  document.getElementById('val-result-card').style.display = 'none';
+  document.getElementById('val-error').style.display = 'none';
+  if (charts['val-chart']) { charts['val-chart'].destroy(); delete charts['val-chart']; }
+}
+
+// ══════════════════════════════════════════════
+//  DETECCIÓN DE COLOR HSV (puro JS)
+// ══════════════════════════════════════════════
+const HSV_PRESETS = {
+  'Naranja':  { hMin:5,   hMax:20,  sMin:120, sMax:255, vMin:120, vMax:255 },
+  'Rojo':     { hMin:0,   hMax:10,  sMin:120, sMax:255, vMin:100, vMax:255 },
+  'Verde':    { hMin:40,  hMax:85,  sMin:70,  sMax:255, vMin:70,  vMax:255 },
+  'Azul':     { hMin:95,  hMax:130, sMin:100, sMax:255, vMin:80,  vMax:255 },
+  'Amarillo': { hMin:20,  hMax:35,  sMin:100, sMax:255, vMin:100, vMax:255 },
+  'Magenta':  { hMin:140, hMax:170, sMin:100, sMax:255, vMin:100, vMax:255 },
+};
+
+// Convierte un pixel RGB (0-255) a HSV (H:0-179, S:0-255, V:0-255)
+function rgbToHsv(r, g, b) {
+  const rn = r/255, gn = g/255, bn = b/255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
+  const d = max - min;
+  let h = 0;
+  if (d !== 0) {
+    if (max === rn) h = ((gn - bn) / d) % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 30; // 0..180
+    if (h < 0) h += 180;
+  }
+  const s = max === 0 ? 0 : (d / max) * 255;
+  const v = max * 255;
+  return [Math.round(h), Math.round(s), Math.round(v)];
+}
+
+/**
+ * Encuentra el blob de color HSV más adecuado en una ImageData.
+ * Si lockOn es {x,y}, busca el blob más cercano a esa posición (dentro de distMax px).
+ * Retorna {x, y, area} en coordenadas de la ImageData, o null si no hay detección.
+ */
+function detectarBlob(imageData, hsvRange, lockOn=null, distMax=200) {
+  const { width: W, height: H, data } = imageData;
+  const { hMin, hMax, sMin, sMax, vMin, vMax } = hsvRange;
+
+  // Construir máscara binaria (1D array)
+  const mask = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    const idx = i * 4;
+    const [h, s, v] = rgbToHsv(data[idx], data[idx+1], data[idx+2]);
+    if (h >= hMin && h <= hMax && s >= sMin && s <= sMax && v >= vMin && v <= vMax) {
+      mask[i] = 1;
+    }
+  }
+
+  // Encontrar componentes conectados (flood fill simple)
+  const visited = new Uint8Array(W * H);
+  const blobs = [];
+  for (let py = 0; py < H; py += 2) {  // submuestreo cada 2px para velocidad
+    for (let px = 0; px < W; px += 2) {
+      const idx = py * W + px;
+      if (mask[idx] && !visited[idx]) {
+        // BFS
+        const queue = [[px, py]];
+        visited[idx] = 1;
+        let sumX = 0, sumY = 0, count = 0;
+        while (queue.length) {
+          const [x, y] = queue.shift();
+          sumX += x; sumY += y; count++;
+          for (const [dx, dy] of [[2,0],[-2,0],[0,2],[0,-2]]) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+              const nidx = ny * W + nx;
+              if (mask[nidx] && !visited[nidx]) {
+                visited[nidx] = 1;
+                queue.push([nx, ny]);
+              }
+            }
+          }
+          if (count > 5000) break; // límite de seguridad
+        }
+        if (count >= 5) {
+          blobs.push({ x: sumX / count, y: sumY / count, area: count });
+        }
+      }
+    }
+  }
+  if (!blobs.length) return null;
+
+  if (lockOn) {
+    // Modo lock-on: blob más cercano dentro del límite
+    let mejor = null, distMin = distMax;
+    for (const b of blobs) {
+      const d = Math.hypot(b.x - lockOn.x, b.y - lockOn.y);
+      if (d < distMin) { distMin = d; mejor = b; }
+    }
+    return mejor;
+  }
+  // Sin lock-on: el blob más grande
+  return blobs.reduce((a, b) => a.area > b.area ? a : b);
+}
+
+// ══════════════════════════════════════════════
+//  CÁMARA EN VIVO
+// ══════════════════════════════════════════════
+let camStream = null;
+let camLoopId = null;
+let camTipo = 'MRUV';
+let camPreset = 'Naranja';
+let camLockOn = null;          // {x, y} en coords del frame del video
+let camDatos = { t: [], x: [], y: [] };
+let camStartTime = 0;
+
+function setCamPreset(nombre, el) {
+  camPreset = nombre;
+  document.querySelectorAll('#cam-presets .seg-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+function setCamTipo(t, el) {
+  camTipo = t;
+  document.querySelectorAll('#tab-camera .seg').forEach((sg, i) => {
+    if (i === 1) {  // segundo seg = tipo
+      sg.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
+    }
+  });
+  el.classList.add('active');
+}
+
+async function iniciarCamara() {
+  const errBox = document.getElementById('cam-error');
+  errBox.style.display = 'none';
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false,
+    });
+    const video = document.getElementById('cam-video');
+    video.srcObject = camStream;
+    await video.play();
+    camDatos = { t: [], x: [], y: [] };
+    camLockOn = null;
+    camStartTime = performance.now() / 1000;
+    document.getElementById('cam-stats').style.display = 'block';
+
+    // Click handler para lock-on
+    const overlay = document.getElementById('cam-overlay');
+    overlay.onclick = (ev) => onClickVideoOverlay(ev, 'cam');
+
+    // Loop de procesamiento
+    camLoopId = requestAnimationFrame(loopCamara);
+  } catch (e) {
+    errBox.textContent = '⚠ No se pudo acceder a la cámara: ' + e.message +
+      '. Recordá que se necesita HTTPS y permiso del navegador.';
+    errBox.style.display = 'block';
+  }
+}
+
+function detenerCamara() {
+  if (camLoopId) { cancelAnimationFrame(camLoopId); camLoopId = null; }
+  if (camStream) {
+    camStream.getTracks().forEach(t => t.stop());
+    camStream = null;
+  }
+  const video = document.getElementById('cam-video');
+  if (video) video.srcObject = null;
+}
+
+function loopCamara() {
+  const video = document.getElementById('cam-video');
+  const proc = document.getElementById('cam-process');
+  const overlay = document.getElementById('cam-overlay');
+  if (!video.videoWidth) {
+    camLoopId = requestAnimationFrame(loopCamara);
+    return;
+  }
+  // Ajustar canvas de procesamiento (resolución reducida para velocidad)
+  const W = 320, H = Math.round(320 * video.videoHeight / video.videoWidth);
+  proc.width = W; proc.height = H;
+  const pctx = proc.getContext('2d');
+  pctx.drawImage(video, 0, 0, W, H);
+  const imgData = pctx.getImageData(0, 0, W, H);
+
+  // Detección
+  const blob = detectarBlob(imgData, HSV_PRESETS[camPreset], camLockOn);
+
+  // Dibujar overlay
+  const oW = overlay.clientWidth, oH = overlay.clientHeight;
+  overlay.width = oW; overlay.height = oH;
+  const octx = overlay.getContext('2d');
+  octx.clearRect(0, 0, oW, oH);
+
+  if (blob) {
+    // Convertir de coords W,H a oW,oH
+    const cx = blob.x / W * oW;
+    const cy = blob.y / H * oH;
+    const r = Math.sqrt(blob.area) * (oW / W);
+    octx.strokeStyle = '#facc15'; octx.lineWidth = 3;
+    octx.beginPath(); octx.arc(cx, cy, r + 4, 0, Math.PI*2); octx.stroke();
+    octx.fillStyle = '#ef4444';
+    octx.beginPath(); octx.arc(cx, cy, 4, 0, Math.PI*2); octx.fill();
+
+    // Guardar dato
+    const t = performance.now() / 1000 - camStartTime;
+    const ppm = parseFloat(document.getElementById('cam-ppm').value) || 100;
+    camDatos.t.push(t);
+    camDatos.x.push(blob.x / ppm);
+    camDatos.y.push((H - blob.y) / ppm);
+    // Actualizar lock-on a la nueva posición
+    if (camLockOn) camLockOn = { x: blob.x, y: blob.y };
+
+    actualizarStatsCamara();
+  }
+
+  // Dibujar lock-on si existe
+  if (camLockOn) {
+    const lx = camLockOn.x / W * oW;
+    const ly = camLockOn.y / H * oH;
+    octx.strokeStyle = '#a78bfa'; octx.lineWidth = 2;
+    octx.beginPath(); octx.arc(lx, ly, 24, 0, Math.PI*2); octx.stroke();
+  }
+
+  camLoopId = requestAnimationFrame(loopCamara);
+}
+
+function onClickVideoOverlay(ev, modo) {
+  const overlay = ev.currentTarget;
+  const rect = overlay.getBoundingClientRect();
+  const px = ev.clientX - rect.left;
+  const py = ev.clientY - rect.top;
+  // Convertir a coords del proc canvas
+  const procId = modo === 'cam' ? 'cam-process' : 'vid-process';
+  const proc = document.getElementById(procId);
+  const W = proc.width, H = proc.height;
+  const x = px / overlay.clientWidth * W;
+  const y = py / overlay.clientHeight * H;
+
+  // Tomar HSV del píxel clicado para auto-ajustar el preset
+  const ctx = proc.getContext('2d');
+  const data = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data;
+  const [h, s, v] = rgbToHsv(data[0], data[1], data[2]);
+  const range = {
+    hMin: Math.max(0, h - 10),  hMax: Math.min(179, h + 10),
+    sMin: Math.max(0, s - 60),  sMax: Math.min(255, s + 60),
+    vMin: Math.max(0, v - 60),  vMax: Math.min(255, v + 60),
+  };
+  HSV_PRESETS['__custom__'] = range;
+
+  if (modo === 'cam') {
+    camPreset = '__custom__';
+    camLockOn = { x, y };
+    camDatos = { t: [], x: [], y: [] };
+    camStartTime = performance.now() / 1000;
+  } else {
+    vidPreset = '__custom__';
+    vidLockOn = { x, y };
+    vidDatos = { t: [], x: [], y: [] };
+  }
+}
+
+function actualizarStatsCamara() {
+  const n = camDatos.t.length;
+  if (n < 3) return;
+  document.getElementById('cam-n').textContent = n;
+  const t = camDatos.t, x = camDatos.x, y = camDatos.y;
+  // Eje dominante
+  const vx = x.reduce((s,v)=>s+v,0)/n, vy = y.reduce((s,v)=>s+v,0)/n;
+  const stdX = Math.sqrt(x.reduce((s,v)=>s+(v-vx)**2,0)/n);
+  const stdY = Math.sqrt(y.reduce((s,v)=>s+(v-vy)**2,0)/n);
+  const sig = stdY > stdX ? y : x;
+
+  const v = derivadaCentral(sig, t);
+  const a = segundaDerivada(sig, t);
+  const vProm = v.reduce((s,vv)=>s+vv,0)/v.length;
+  const aProm = a.reduce((s,vv)=>s+vv,0)/a.length;
+
+  document.getElementById('cam-v').textContent = vProm.toFixed(2)+' m/s';
+  document.getElementById('cam-a').textContent = aProm.toFixed(2)+' m/s²';
+  document.getElementById('cam-dist').textContent = distanciaTotal(sig).toFixed(2)+' m';
+  document.getElementById('cam-t').textContent = (t[t.length-1]-t[0]).toFixed(2)+' s';
+
+  // Error vs teórico (usando el tipo manual seleccionado)
+  let xTeo;
+  const t0 = t[0];
+  const tRel = t.map(ti => ti - t0);
+  if (camTipo === 'MRU') xTeo = posicionMRU(sig[0], vProm, tRel);
+  else if (camTipo === 'Caída Libre') xTeo = caidaLibre(sig[0], vProm, tRel);
+  else xTeo = posicionMRUV(sig[0], vProm, aProm, tRel);
+  const errs = sig.map((s,i)=>Math.abs(s-xTeo[i])/(Math.abs(xTeo[i])||1e-9)*100);
+  document.getElementById('cam-err').textContent =
+    (errs.reduce((s,v)=>s+v,0)/errs.length).toFixed(2)+'%';
+
+  document.getElementById('cam-tipo-badge').innerHTML =
+    `<span class="badge-tipo badge-${camTipo==='MRU'?'MRU':camTipo==='MRUV'?'MRUV':'libre'}">Tipo: ${camTipo}</span>`;
+
+  // Gráfica
+  if (n % 5 === 0) {  // refrescar cada 5 frames
+    makeChart('cam-chart-x', sig === y ? 'y(t) [m]' : 'x(t) [m]',
+              '#4f8ef7', t, sig);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  ANÁLISIS DE VIDEO GRABADO
+// ══════════════════════════════════════════════
+let vidLoopId = null;
+let vidTipo = 'MRUV';
+let vidPreset = 'Naranja';
+let vidLockOn = null;
+let vidDatos = { t: [], x: [], y: [] };
+
+function setVidPreset(nombre, el) {
+  vidPreset = nombre;
+  document.querySelectorAll('#tab-video .seg').forEach((sg, i) => {
+    if (i === 0) sg.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
+  });
+  el.classList.add('active');
+}
+function setVidTipo(t, el) {
+  vidTipo = t;
+  document.querySelectorAll('#tab-video .seg').forEach((sg, i) => {
+    if (i === 1) sg.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
+  });
+  el.classList.add('active');
+}
+
+function cargarVideo(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const video = document.getElementById('vid-video');
+  video.src = url;
+  document.getElementById('vid-info').innerHTML =
+    `✓ <b>${file.name}</b> · ${(file.size/(1024*1024)).toFixed(2)} MB`;
+  vidDatos = { t: [], x: [], y: [] };
+  vidLockOn = null;
+  // Click handler en overlay
+  const overlay = document.getElementById('vid-overlay');
+  overlay.onclick = (ev) => onClickVideoOverlay(ev, 'vid');
+}
+
+function reproducirYAnalizar() {
+  const video = document.getElementById('vid-video');
+  if (!video.src) {
+    alert('Primero cargá un video.');
+    return;
+  }
+  vidDatos = { t: [], x: [], y: [] };
+  document.getElementById('vid-stats').style.display = 'block';
+  video.play();
+  vidLoopId = requestAnimationFrame(loopVideo);
+}
+
+function pausarVideo() {
+  const video = document.getElementById('vid-video');
+  if (video.paused) video.play(); else video.pause();
+}
+
+function reiniciarVideo() {
+  const video = document.getElementById('vid-video');
+  video.pause();
+  video.currentTime = 0;
+  vidDatos = { t: [], x: [], y: [] };
+  if (vidLoopId) { cancelAnimationFrame(vidLoopId); vidLoopId = null; }
+  document.getElementById('vid-stats').style.display = 'none';
+  const overlay = document.getElementById('vid-overlay');
+  overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
+}
+
+function loopVideo() {
+  const video = document.getElementById('vid-video');
+  const proc = document.getElementById('vid-process');
+  const overlay = document.getElementById('vid-overlay');
+
+  if (video.paused || video.ended) {
+    if (video.ended) {
+      vidLoopId = null;
+      return;
+    }
+    // Mientras está pausado, igual mostramos el lock-on
+    requestAnimationFrame(loopVideo);
+    return;
+  }
+
+  const W = 320, H = Math.round(320 * video.videoHeight / video.videoWidth || 240);
+  proc.width = W; proc.height = H;
+  const pctx = proc.getContext('2d');
+  pctx.drawImage(video, 0, 0, W, H);
+  const imgData = pctx.getImageData(0, 0, W, H);
+
+  const blob = detectarBlob(imgData, HSV_PRESETS[vidPreset], vidLockOn);
+
+  const oW = overlay.clientWidth, oH = overlay.clientHeight;
+  overlay.width = oW; overlay.height = oH;
+  const octx = overlay.getContext('2d');
+  octx.clearRect(0, 0, oW, oH);
+
+  if (blob) {
+    const cx = blob.x / W * oW;
+    const cy = blob.y / H * oH;
+    const r = Math.sqrt(blob.area) * (oW / W);
+    octx.strokeStyle = '#facc15'; octx.lineWidth = 3;
+    octx.beginPath(); octx.arc(cx, cy, r + 4, 0, Math.PI*2); octx.stroke();
+    octx.fillStyle = '#ef4444';
+    octx.beginPath(); octx.arc(cx, cy, 4, 0, Math.PI*2); octx.fill();
+
+    const ppm = parseFloat(document.getElementById('vid-ppm').value) || 100;
+    vidDatos.t.push(video.currentTime);
+    vidDatos.x.push(blob.x / ppm);
+    vidDatos.y.push((H - blob.y) / ppm);
+    if (vidLockOn) vidLockOn = { x: blob.x, y: blob.y };
+
+    actualizarStatsVideo();
+  }
+
+  if (vidLockOn) {
+    const lx = vidLockOn.x / W * oW;
+    const ly = vidLockOn.y / H * oH;
+    octx.strokeStyle = '#a78bfa'; octx.lineWidth = 2;
+    octx.beginPath(); octx.arc(lx, ly, 24, 0, Math.PI*2); octx.stroke();
+  }
+
+  vidLoopId = requestAnimationFrame(loopVideo);
+}
+
+function actualizarStatsVideo() {
+  const n = vidDatos.t.length;
+  if (n < 3) return;
+  document.getElementById('vid-n').textContent = n;
+  const t = vidDatos.t, x = vidDatos.x, y = vidDatos.y;
+  const stdX = Math.sqrt(x.reduce((s,v,i)=>s+(v-x.reduce((a,b)=>a+b,0)/n)**2,0)/n);
+  const stdY = Math.sqrt(y.reduce((s,v,i)=>s+(v-y.reduce((a,b)=>a+b,0)/n)**2,0)/n);
+  const sig = stdY > stdX ? y : x;
+  const v = derivadaCentral(sig, t);
+  const a = segundaDerivada(sig, t);
+  const vProm = v.reduce((s,vv)=>s+vv,0)/v.length;
+  const aProm = a.reduce((s,vv)=>s+vv,0)/a.length;
+
+  document.getElementById('vid-v').textContent = vProm.toFixed(2)+' m/s';
+  document.getElementById('vid-a').textContent = aProm.toFixed(2)+' m/s²';
+  document.getElementById('vid-dist').textContent = distanciaTotal(sig).toFixed(2)+' m';
+  document.getElementById('vid-t').textContent = (t[t.length-1]-t[0]).toFixed(2)+' s';
+
+  const tRel = t.map(ti => ti - t[0]);
+  let xTeo;
+  if (vidTipo === 'MRU') xTeo = posicionMRU(sig[0], vProm, tRel);
+  else if (vidTipo === 'Caída Libre') xTeo = caidaLibre(sig[0], vProm, tRel);
+  else xTeo = posicionMRUV(sig[0], vProm, aProm, tRel);
+  const errs = sig.map((s,i)=>Math.abs(s-xTeo[i])/(Math.abs(xTeo[i])||1e-9)*100);
+  document.getElementById('vid-err').textContent =
+    (errs.reduce((s,v)=>s+v,0)/errs.length).toFixed(2)+'%';
+
+  document.getElementById('vid-tipo-badge').innerHTML =
+    `<span class="badge-tipo badge-${vidTipo==='MRU'?'MRU':vidTipo==='MRUV'?'MRUV':'libre'}">Tipo: ${vidTipo}</span>`;
+
+  if (n % 5 === 0) {
+    makeChart('vid-chart-x', sig === y ? 'y(t) [m]' : 'x(t) [m]',
+              '#4f8ef7', t, sig);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  QR
+// ══════════════════════════════════════════════
+function usarURLActual() {
+  document.getElementById('qr-url').value = window.location.href;
+}
+
+function generarQR() {
+  const url = document.getElementById('qr-url').value.trim();
+  if (!url) {
+    alert('Ingresa una URL primero.');
+    return;
+  }
+  const container = document.getElementById('qr-canvas');
+  container.innerHTML = '';
+  new QRCode(container, {
+    text: url,
+    width: 200,
+    height: 200,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H
+  });
+  document.getElementById('qr-label').textContent = url;
+  document.getElementById('qr-download-btn').style.display = 'inline-flex';
+}
+
+function descargarQR() {
+  const img = document.querySelector('#qr-canvas img') || document.querySelector('#qr-canvas canvas');
+  if (!img) return;
+  const src = img.tagName === 'IMG' ? img.src : img.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = src;
+  a.download = 'PhysicsMotionAnalyzer-QR.png';
+  a.click();
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+renderSolverFields();
+document.getElementById('sim-a-row').style.display = 'none'; // MRU por defecto
+usarURLActual(); // Pre-cargar URL actual en el campo QR
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# IDEs
+.idea/
+.vscode/*.log
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Archivos de debug y salida
+debug_*.png
+preview_*.png
+*.csv
+*.tmp
+
+# Videos de prueba generados (se regeneran con tools/generar_videos_prueba.py)
+videos_prueba/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
