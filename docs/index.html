@@ -263,6 +263,9 @@
           <div class="stat green"><div class="stat-label">Detecciones</div><div class="stat-value" id="cam-n">—</div></div>
           <div class="stat red"><div class="stat-label">Error vs teórico</div><div class="stat-value" id="cam-err">—</div></div>
         </div>
+        <div class="btn-row">
+          <button class="btn btn-outline" onclick="exportarCSV('cam')">⤓ Exportar CSV</button>
+        </div>
       </div>
     </div>
 
@@ -327,6 +330,20 @@
         <label>Calibración (píxeles por metro)</label>
         <input type="number" id="vid-ppm" value="100" step="10">
 
+        <div style="background:#3a2a10;border:1px solid var(--yellow);border-radius:8px;padding:10px 14px;margin-top:14px">
+          <div style="font-size:0.82rem;color:var(--yellow);font-weight:600;margin-bottom:6px">✂ Recorte (segundos) — IMPORTANTE</div>
+          <div style="font-size:0.78rem;color:#fde68a;margin-bottom:8px;line-height:1.4">
+            Analizá solo el tramo donde la pelota se mueve realmente. Si incluís partes quietas, el error sube mucho.
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <label style="margin:0;color:#fde68a;font-size:0.78rem">Inicio:</label>
+            <input type="number" id="vid-t-ini" value="0" step="0.1" min="0" style="width:70px;padding:4px 8px;font-size:0.85rem">
+            <label style="margin:0;color:#fde68a;font-size:0.78rem">Fin:</label>
+            <input type="number" id="vid-t-fin" value="0" step="0.1" min="0" style="width:70px;padding:4px 8px;font-size:0.85rem">
+            <span style="font-size:0.72rem;color:var(--muted)">(0 = hasta el final)</span>
+          </div>
+        </div>
+
         <div class="btn-row">
           <button class="btn btn-green" onclick="reproducirYAnalizar()">▶ Reproducir y analizar</button>
           <button class="btn btn-outline" onclick="pausarVideo()">⏸ Pausar</button>
@@ -348,6 +365,9 @@
           <div class="stat"><div class="stat-label">Tiempo</div><div class="stat-value" id="vid-t">—</div></div>
           <div class="stat green"><div class="stat-label">Detecciones</div><div class="stat-value" id="vid-n">—</div></div>
           <div class="stat red"><div class="stat-label">Error vs teórico</div><div class="stat-value" id="vid-err">—</div></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-outline" onclick="exportarCSV('vid')">⤓ Exportar CSV</button>
         </div>
       </div>
     </div>
@@ -1275,6 +1295,13 @@ function cargarVideo(ev) {
     `✓ <b>${file.name}</b> · ${(file.size/(1024*1024)).toFixed(2)} MB`;
   vidDatos = { t: [], x: [], y: [] };
   vidLockOn = null;
+  // Auto-rellenar duración cuando se conozcan los metadatos
+  video.onloadedmetadata = () => {
+    document.getElementById('vid-info').innerHTML +=
+      ` · Duración: ${video.duration.toFixed(2)}s`;
+    document.getElementById('vid-t-ini').value = 0;
+    document.getElementById('vid-t-fin').value = 0;
+  };
   // Click handler en overlay
   const overlay = document.getElementById('vid-overlay');
   overlay.onclick = (ev) => onClickVideoOverlay(ev, 'vid');
@@ -1312,6 +1339,18 @@ function loopVideo() {
   const video = document.getElementById('vid-video');
   const proc = document.getElementById('vid-process');
   const overlay = document.getElementById('vid-overlay');
+
+  // Aplicar recorte (trim)
+  const tIni = parseFloat(document.getElementById('vid-t-ini').value) || 0;
+  const tFin = parseFloat(document.getElementById('vid-t-fin').value) || 0;
+  if (tIni > 0 && video.currentTime < tIni) {
+    video.currentTime = tIni;
+  }
+  if (tFin > 0 && video.currentTime >= tFin) {
+    video.pause();
+    vidLoopId = null;
+    return;
+  }
 
   if (video.paused || video.ended) {
     if (video.ended) {
@@ -1393,6 +1432,37 @@ function actualizarStatsVideo() {
 
   document.getElementById('vid-tipo-badge').innerHTML =
     `<span class="badge-tipo badge-${vidTipo==='MRU'?'MRU':vidTipo==='MRUV'?'MRUV':'libre'}">Tipo: ${vidTipo}</span>`;
+}
+
+// ══════════════════════════════════════════════
+//  EXPORTAR CSV
+// ══════════════════════════════════════════════
+function exportarCSV(modo) {
+  const datos = modo === 'cam' ? camDatos : vidDatos;
+  if (!datos || datos.t.length < 3) {
+    alert('Aún no hay suficientes datos para exportar.');
+    return;
+  }
+  const tipo = modo === 'cam' ? camTipo : vidTipo;
+  const t = datos.t, x = datos.x, y = datos.y;
+  const sig = (() => {
+    const stdX = Math.sqrt(x.reduce((s,v)=>s+(v-x.reduce((a,b)=>a+b,0)/x.length)**2,0)/x.length);
+    const stdY = Math.sqrt(y.reduce((s,v)=>s+(v-y.reduce((a,b)=>a+b,0)/y.length)**2,0)/y.length);
+    return stdY > stdX ? y : x;
+  })();
+  const v = derivadaCentral(sig, t);
+  const a = segundaDerivada(sig, t);
+  let csv = 'tiempo_s,posicion_x_m,posicion_y_m,velocidad_m_s,aceleracion_m_s2,tipo_movimiento\n';
+  for (let i = 0; i < t.length; i++) {
+    csv += `${t[i].toFixed(4)},${x[i].toFixed(4)},${y[i].toFixed(4)},${(v[i]||0).toFixed(4)},${(a[i]||0).toFixed(4)},${tipo}\n`;
+  }
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `PhysicsMotion_${modo}_${tipo.replace(' ','')}_${Date.now()}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 // ══════════════════════════════════════════════
