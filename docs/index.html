@@ -351,14 +351,17 @@
           </div>
         </div>
 
-        <div class="btn-row">
+        <button class="btn" onclick="abrirCalibrador('vid')" id="vid-btn-calibrador" disabled style="background:var(--accent2);color:#fff;width:100%;padding:14px;font-size:0.95rem;font-weight:700;margin-top:14px">
+          🎯 Abrir Calibrador Visual
+        </button>
+        <div style="margin-top:6px;font-size:0.78rem;color:var(--muted);line-height:1.5">
+          Igual al de la app de escritorio: navegá frame por frame, hacé click sobre la pelota para fijarla, y marcá visualmente inicio/fin.
+        </div>
+
+        <div class="btn-row" style="margin-top:14px">
           <button class="btn btn-green" onclick="reproducirYAnalizar()">▶ Reproducir y analizar</button>
           <button class="btn btn-outline" onclick="pausarVideo()">⏸ Pausar</button>
           <button class="btn btn-outline" onclick="reiniciarVideo()">⟳ Reiniciar</button>
-        </div>
-
-        <div style="margin-top:14px;font-size:0.82rem;color:var(--muted);line-height:1.5">
-          💡 <b>Pausá el video</b> en un frame donde se vea bien la pelota → <b>click</b> sobre ella para fijar el color.
         </div>
       </div>
 
@@ -1346,6 +1349,13 @@ function cargarVideo(ev) {
       ` · Duración: ${video.duration.toFixed(2)}s`;
     document.getElementById('vid-t-ini').value = 0;
     document.getElementById('vid-t-fin').value = 0;
+    // Habilitar el botón del Calibrador Visual
+    const btn = document.getElementById('vid-btn-calibrador');
+    if (btn) {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+    }
   };
   // Click handler en overlay
   const overlay = document.getElementById('vid-overlay');
@@ -1480,6 +1490,252 @@ function actualizarStatsVideo() {
 }
 
 // ══════════════════════════════════════════════
+//  CALIBRADOR VISUAL (modal estilo desktop)
+// ══════════════════════════════════════════════
+let cal = {
+  modo: null,            // 'vid' o 'cam'
+  videoEl: null,
+  W: 0, H: 0,            // dimensiones del frame procesado
+  range: null,           // rango HSV capturado
+  lockOn: null,          // {x,y} en coords del frame
+  radio: 0,
+  inicio: 0, fin: 0,
+  duracion: 0,
+};
+
+function abrirCalibrador(modo) {
+  cal.modo = modo;
+  cal.videoEl = document.getElementById(modo === 'vid' ? 'vid-video' : 'cam-video');
+  if (!cal.videoEl || !cal.videoEl.videoWidth) {
+    alert('Primero cargá un video o iniciá la cámara.');
+    return;
+  }
+  cal.duracion = cal.videoEl.duration || 0;
+  cal.range = null;
+  cal.lockOn = null;
+  cal.radio = 0;
+  cal.inicio = 0;
+  cal.fin = cal.duracion;
+
+  // Configurar slider
+  const slider = document.getElementById('cal-slider');
+  const segActual = cal.videoEl.currentTime || 0;
+  slider.max = Math.max(1, Math.floor(cal.duracion * 10));  // décimas de segundo
+  slider.value = Math.floor(segActual * 10);
+
+  // Resetear UI
+  document.getElementById('cal-color-sample').style.background = '#444';
+  document.getElementById('cal-color-hsv').textContent = 'sin fijar';
+  document.getElementById('cal-show-mask').checked = false;
+  document.getElementById('cal-inicio-label').textContent = `⏵ Inicio: ${cal.inicio.toFixed(2)}s`;
+  document.getElementById('cal-fin-label').textContent = `⏸ Fin: ${cal.fin.toFixed(2)}s`;
+  document.getElementById('cal-mensaje').innerHTML =
+    '💡 Movete con el slider y hacé <b>click sobre la pelota</b> para capturar su color y posición.';
+
+  // Pausar el video original mientras calibramos
+  cal.videoEl.pause();
+
+  // Mostrar modal
+  document.getElementById('modal-cal').style.display = 'flex';
+
+  // Setup canvas + click handler
+  const canvas = document.getElementById('cal-canvas');
+  canvas.onclick = clickCalibrador;
+
+  // Dibujar frame inicial
+  dibujarFrameCalibrador();
+}
+
+function navegarCalibrador(valSlider) {
+  const seg = parseFloat(valSlider) / 10;
+  cal.videoEl.currentTime = seg;
+  // Esperar a que el frame se actualice
+  cal.videoEl.onseeked = () => {
+    dibujarFrameCalibrador();
+    cal.videoEl.onseeked = null;
+  };
+}
+
+function dibujarFrameCalibrador() {
+  const canvas = document.getElementById('cal-canvas');
+  const v = cal.videoEl;
+  if (!v.videoWidth) return;
+
+  // Tamaño de procesamiento (320 max width para velocidad)
+  cal.W = Math.min(v.videoWidth, 480);
+  cal.H = Math.round(cal.W * v.videoHeight / v.videoWidth);
+  canvas.width = cal.W;
+  canvas.height = cal.H;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(v, 0, 0, cal.W, cal.H);
+
+  // Tiempo
+  const seg = v.currentTime || 0;
+  document.getElementById('cal-time-label').textContent =
+    `${seg.toFixed(2)}s / ${cal.duracion.toFixed(2)}s`;
+
+  // Si hay rango HSV y máscara activa, superponer la detección
+  if (cal.range && document.getElementById('cal-show-mask').checked) {
+    const imgData = ctx.getImageData(0, 0, cal.W, cal.H);
+    const overlay = ctx.createImageData(cal.W, cal.H);
+    for (let i = 0; i < cal.W * cal.H; i++) {
+      const idx = i * 4;
+      const [h, s, vv] = rgbToHsv(imgData.data[idx], imgData.data[idx+1], imgData.data[idx+2]);
+      if (h >= cal.range.hMin && h <= cal.range.hMax &&
+          s >= cal.range.sMin && s <= cal.range.sMax &&
+          vv >= cal.range.vMin && vv <= cal.range.vMax) {
+        overlay.data[idx] = 0; overlay.data[idx+1] = 200; overlay.data[idx+2] = 255;
+        overlay.data[idx+3] = 120;
+      }
+    }
+    // Mezclar overlay
+    const blended = ctx.getImageData(0, 0, cal.W, cal.H);
+    for (let i = 0; i < blended.data.length; i += 4) {
+      if (overlay.data[i+3] > 0) {
+        blended.data[i]   = overlay.data[i];
+        blended.data[i+1] = overlay.data[i+1];
+        blended.data[i+2] = overlay.data[i+2];
+      }
+    }
+    ctx.putImageData(blended, 0, 0);
+
+    // Buscar y dibujar el blob actual
+    const blob = detectarBlob(imgData, cal.range, cal.lockOn, 150);
+    if (blob) {
+      ctx.strokeStyle = '#facc15'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(blob.x, blob.y, Math.sqrt(blob.area) + 4, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath(); ctx.arc(blob.x, blob.y, 4, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Dibujar la cruz del lock-on
+  if (cal.lockOn) {
+    const { x, y } = cal.lockOn;
+    ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = 2;
+    const r = Math.max(cal.radio + 6, 14);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke();
+    // Cruz
+    ctx.beginPath();
+    ctx.moveTo(x - r - 8, y); ctx.lineTo(x - r, y);
+    ctx.moveTo(x + r, y);     ctx.lineTo(x + r + 8, y);
+    ctx.moveTo(x, y - r - 8); ctx.lineTo(x, y - r);
+    ctx.moveTo(x, y + r);     ctx.lineTo(x, y + r + 8);
+    ctx.stroke();
+  }
+}
+
+function clickCalibrador(ev) {
+  const canvas = document.getElementById('cal-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const px = ev.clientX - rect.left;
+  const py = ev.clientY - rect.top;
+  const x = px / canvas.clientWidth * cal.W;
+  const y = py / canvas.clientHeight * cal.H;
+
+  const ctx = canvas.getContext('2d');
+  // Re-dibujar el frame puro para tomar el color (sin overlay)
+  ctx.drawImage(cal.videoEl, 0, 0, cal.W, cal.H);
+
+  // Tomar HSV de un parche 7x7
+  const px1 = Math.max(0, Math.round(x) - 3);
+  const py1 = Math.max(0, Math.round(y) - 3);
+  const w7 = Math.min(7, cal.W - px1);
+  const h7 = Math.min(7, cal.H - py1);
+  const data = ctx.getImageData(px1, py1, w7, h7).data;
+  let rs=0, gs=0, bs=0, ct=0;
+  for (let i = 0; i < data.length; i += 4) { rs+=data[i]; gs+=data[i+1]; bs+=data[i+2]; ct++; }
+  const r = Math.round(rs/ct), g = Math.round(gs/ct), b = Math.round(bs/ct);
+  const [h, s, v] = rgbToHsv(r, g, b);
+
+  cal.range = {
+    hMin: Math.max(0, h - 15),  hMax: Math.min(179, h + 15),
+    sMin: Math.max(40, s - 70), sMax: Math.min(255, s + 70),
+    vMin: Math.max(40, v - 70), vMax: Math.min(255, v + 70),
+  };
+
+  // Detectar blob real cerca del click
+  const fullImg = ctx.getImageData(0, 0, cal.W, cal.H);
+  const blob = detectarBlob(fullImg, cal.range, { x, y }, 80);
+
+  let blobOK = false;
+  if (blob) {
+    cal.lockOn = { x: blob.x, y: blob.y };
+    cal.radio = Math.round(Math.sqrt(blob.area));
+    blobOK = true;
+  } else {
+    cal.lockOn = { x, y };
+    cal.radio = 0;
+  }
+
+  // Feedback UI
+  const hex = '#' + [r,g,b].map(c=>c.toString(16).padStart(2,'0')).join('');
+  document.getElementById('cal-color-sample').style.background = hex;
+  document.getElementById('cal-color-hsv').textContent =
+    `HSV(${h},${s},${v}) · H[${cal.range.hMin}-${cal.range.hMax}] · pos(${Math.round(cal.lockOn.x)},${Math.round(cal.lockOn.y)})`;
+  document.getElementById('cal-mensaje').innerHTML = blobOK
+    ? `<span style="color:var(--green)"><b>✓ OBJETIVO FIJADO</b></span> · blob detectado (radio ≈ ${cal.radio}px). Activá "Mostrar máscara" para verificar la detección.`
+    : `<span style="color:var(--yellow)"><b>⚠ Color capturado pero blob débil</b></span> · El sistema usará la posición exacta del click. Probá hacer click justo en el centro de la pelota.`;
+
+  // Auto-activar máscara para feedback inmediato
+  document.getElementById('cal-show-mask').checked = true;
+  dibujarFrameCalibrador();
+}
+
+function marcarInicioCal() {
+  cal.inicio = cal.videoEl.currentTime;
+  if (cal.inicio >= cal.fin) cal.fin = cal.duracion;
+  document.getElementById('cal-inicio-label').textContent = `⏵ Inicio: ${cal.inicio.toFixed(2)}s`;
+  document.getElementById('cal-fin-label').textContent = `⏸ Fin: ${cal.fin.toFixed(2)}s`;
+}
+
+function marcarFinCal() {
+  const t = cal.videoEl.currentTime;
+  if (t <= cal.inicio) {
+    alert('El segundo final debe ser mayor que el inicio.');
+    return;
+  }
+  cal.fin = t;
+  document.getElementById('cal-fin-label').textContent = `⏸ Fin: ${cal.fin.toFixed(2)}s`;
+}
+
+function cancelarCalibrador() {
+  document.getElementById('modal-cal').style.display = 'none';
+}
+
+function aplicarCalibrador() {
+  if (!cal.range) {
+    if (!confirm('No fijaste ningún color. ¿Cerrar igual?')) return;
+    document.getElementById('modal-cal').style.display = 'none';
+    return;
+  }
+  // Aplicar al modo correspondiente
+  HSV_PRESETS['__custom__'] = cal.range;
+  if (cal.modo === 'vid') {
+    vidPreset = '__custom__';
+    vidLockOn = cal.lockOn;
+    vidDatos = { t: [], x: [], y: [] };
+    document.getElementById('vid-t-ini').value = cal.inicio.toFixed(2);
+    document.getElementById('vid-t-fin').value = cal.fin.toFixed(2);
+    // Actualizar feedback visual del panel inline
+    const hex = document.getElementById('cal-color-sample').style.background;
+    document.getElementById('vid-color-sample').style.background = hex;
+    document.getElementById('vid-color-hsv').textContent =
+      `H[${cal.range.hMin}-${cal.range.hMax}] · radio≈${cal.radio}px`;
+    document.getElementById('vid-lockon-pos').textContent =
+      `(${Math.round(cal.lockOn.x)}, ${Math.round(cal.lockOn.y)}) ✓`;
+    document.getElementById('vid-calib-msg').innerHTML =
+      `<span style="color:var(--green)"><b>✓ CALIBRADO</b></span> · Recorte ${cal.inicio.toFixed(2)}s → ${cal.fin.toFixed(2)}s. Presioná ▶ Reproducir y analizar.`;
+  } else {
+    camPreset = '__custom__';
+    camLockOn = cal.lockOn;
+    camDatos = { t: [], x: [], y: [] };
+    camStartTime = performance.now() / 1000;
+  }
+  document.getElementById('modal-cal').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════
 //  EXPORTAR CSV
 // ══════════════════════════════════════════════
 function exportarCSV(modo) {
@@ -1554,5 +1810,62 @@ renderSolverFields();
 document.getElementById('sim-a-row').style.display = 'none'; // MRU por defecto
 usarURLActual(); // Pre-cargar URL actual en el campo QR
 </script>
+
+<!-- ═══════════════════ MODAL: CALIBRADOR VISUAL ═══════════════════ -->
+<div id="modal-cal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--surface);border-radius:14px;width:100%;max-width:980px;max-height:95vh;overflow:auto;border:1px solid var(--border)">
+    <div style="background:var(--surface2);padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px">
+      <span style="font-size:1.3rem">🎯</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:1.1rem">Calibrador Visual</div>
+        <div style="font-size:0.82rem;color:var(--muted)">Hacé click sobre el objeto → captura su color HSV y lo fija</div>
+      </div>
+      <button class="btn btn-outline" onclick="cancelarCalibrador()" style="padding:6px 12px">✕ Cerrar</button>
+    </div>
+
+    <div style="padding:20px">
+      <!-- Vista del frame -->
+      <div style="position:relative;background:#000;border-radius:8px;overflow:hidden;margin-bottom:14px">
+        <canvas id="cal-canvas" style="width:100%;display:block;cursor:crosshair;max-height:480px"></canvas>
+      </div>
+
+      <!-- Slider de tiempo -->
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+        <span id="cal-time-label" style="font-family:'Courier New',monospace;font-size:0.95rem;font-weight:700;color:var(--accent);min-width:140px">0.00s / 0.00s</span>
+        <input type="range" id="cal-slider" min="0" max="100" value="0" step="1" style="flex:1;accent-color:var(--accent)" oninput="navegarCalibrador(this.value)">
+      </div>
+
+      <!-- Marcas de inicio y fin -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <span id="cal-inicio-label" style="background:var(--surface2);padding:6px 12px;border-radius:6px;color:var(--green);font-weight:600;font-size:0.88rem">⏵ Inicio: 0.00s</span>
+        <button class="btn btn-green" onclick="marcarInicioCal()" style="padding:6px 14px;font-size:0.85rem">📍 Marcar inicio aquí</button>
+        <span style="color:var(--muted)">|</span>
+        <span id="cal-fin-label" style="background:var(--surface2);padding:6px 12px;border-radius:6px;color:var(--red);font-weight:600;font-size:0.88rem">⏸ Fin: 0.00s</span>
+        <button class="btn" style="background:var(--red);color:#fff;padding:6px 14px;font-size:0.85rem" onclick="marcarFinCal()">📍 Marcar fin aquí</button>
+      </div>
+
+      <!-- Color capturado y toggle máscara -->
+      <div style="background:var(--surface2);padding:12px 16px;border-radius:8px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px">
+          <span style="font-size:0.85rem;color:var(--muted)">Color capturado:</span>
+          <span id="cal-color-sample" style="display:inline-block;width:40px;height:26px;background:#444;border-radius:4px;border:1px solid var(--border)"></span>
+          <span id="cal-color-hsv" style="font-family:'Courier New',monospace;font-size:0.82rem;color:var(--muted)">sin fijar</span>
+          <label style="margin:0;display:flex;align-items:center;gap:6px;color:var(--text);font-size:0.85rem;cursor:pointer">
+            <input type="checkbox" id="cal-show-mask" onchange="dibujarFrameCalibrador()"> Mostrar máscara de detección
+          </label>
+        </div>
+        <div id="cal-mensaje" style="font-size:0.85rem;color:var(--yellow);font-style:italic;line-height:1.5">
+          💡 Movete con el slider y hacé <b>click sobre la pelota</b> para capturar su color y posición.
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface2);padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="cancelarCalibrador()" style="padding:10px 18px">✕ Cancelar</button>
+      <button class="btn btn-primary" onclick="aplicarCalibrador()" style="padding:10px 22px;font-weight:700">✓ Aplicar configuración</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
