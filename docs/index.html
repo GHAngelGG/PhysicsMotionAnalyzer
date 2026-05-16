@@ -335,12 +335,19 @@
           <div style="font-size:0.78rem;color:#fde68a;margin-bottom:8px;line-height:1.4">
             Analizá solo el tramo donde la pelota se mueve realmente. Si incluís partes quietas, el error sube mucho.
           </div>
-          <div style="display:flex;gap:10px;align-items:center">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <label style="margin:0;color:#fde68a;font-size:0.78rem">Inicio:</label>
             <input type="number" id="vid-t-ini" value="0" step="0.1" min="0" style="width:70px;padding:4px 8px;font-size:0.85rem">
-            <label style="margin:0;color:#fde68a;font-size:0.78rem">Fin:</label>
+            <button class="btn btn-outline" style="padding:4px 10px;font-size:0.75rem" onclick="marcarInicioVideo()">📍 Marcar aquí</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+            <label style="margin:0;color:#fde68a;font-size:0.78rem">&nbsp;&nbsp;&nbsp;Fin:</label>
             <input type="number" id="vid-t-fin" value="0" step="0.1" min="0" style="width:70px;padding:4px 8px;font-size:0.85rem">
-            <span style="font-size:0.72rem;color:var(--muted)">(0 = hasta el final)</span>
+            <button class="btn btn-outline" style="padding:4px 10px;font-size:0.75rem" onclick="marcarFinVideo()">📍 Marcar aquí</button>
+            <span style="font-size:0.72rem;color:var(--muted)">(0 = al final)</span>
+          </div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:6px;font-style:italic">
+            💡 Pausá el video en el momento exacto y presioná "Marcar aquí" para capturar ese segundo.
           </div>
         </div>
 
@@ -1135,13 +1142,11 @@ function onClickVideoOverlay(ev, modo) {
   const rect = overlay.getBoundingClientRect();
   const px = ev.clientX - rect.left;
   const py = ev.clientY - rect.top;
-  // Convertir a coords del proc canvas
   const procId = modo === 'cam' ? 'cam-process' : 'vid-process';
   const proc = document.getElementById(procId);
 
-  // Si es video y el proc canvas no tiene tamaño aún (video pausado al inicio),
-  // forzar un draw del frame actual
-  if (modo === 'vid' && (proc.width === 0 || proc.width === 300)) {
+  // Forzar redibujo del frame actual del video si está pausado o vacío
+  if (modo === 'vid') {
     const video = document.getElementById('vid-video');
     if (video.videoWidth) {
       const W = 320, H = Math.round(320 * video.videoHeight / video.videoWidth);
@@ -1155,52 +1160,92 @@ function onClickVideoOverlay(ev, modo) {
   const x = px / overlay.clientWidth * W;
   const y = py / overlay.clientHeight * H;
 
-  // Tomar HSV en un parche 5x5 (más robusto que 1 píxel)
+  // 1) Tomar HSV de un parche 7x7 (más robusto)
   const ctx = proc.getContext('2d');
-  const px1 = Math.max(0, Math.round(x) - 2);
-  const py1 = Math.max(0, Math.round(y) - 2);
-  const w5 = Math.min(5, W - px1);
-  const h5 = Math.min(5, H - py1);
-  const data = ctx.getImageData(px1, py1, w5, h5).data;
-  // Promedio del parche
+  const px1 = Math.max(0, Math.round(x) - 3);
+  const py1 = Math.max(0, Math.round(y) - 3);
+  const w7 = Math.min(7, W - px1);
+  const h7 = Math.min(7, H - py1);
+  const data = ctx.getImageData(px1, py1, w7, h7).data;
   let rs=0, gs=0, bs=0, ct=0;
   for (let i = 0; i < data.length; i += 4) { rs+=data[i]; gs+=data[i+1]; bs+=data[i+2]; ct++; }
   const r = Math.round(rs/ct), g = Math.round(gs/ct), b = Math.round(bs/ct);
   const [h, s, v] = rgbToHsv(r, g, b);
+
+  // 2) Tolerancia HSV más amplia (H±15 en lugar de ±10) para mejor robustez
   const range = {
-    hMin: Math.max(0, h - 10),  hMax: Math.min(179, h + 10),
-    sMin: Math.max(0, s - 60),  sMax: Math.min(255, s + 60),
-    vMin: Math.max(0, v - 60),  vMax: Math.min(255, v + 60),
+    hMin: Math.max(0, h - 15),  hMax: Math.min(179, h + 15),
+    sMin: Math.max(40, s - 70), sMax: Math.min(255, s + 70),
+    vMin: Math.max(40, v - 70), vMax: Math.min(255, v + 70),
   };
   HSV_PRESETS['__custom__'] = range;
 
-  // Color hex para mostrar
+  // 3) Detectar el blob REAL más cercano al click usando el rango capturado
+  const fullImg = ctx.getImageData(0, 0, W, H);
+  const blob = detectarBlob(fullImg, range, { x, y }, 80);
+
+  // Coordenadas finales: si encontramos blob, usar SU centro; si no, el click directo
+  let finalX = x, finalY = y, blobOK = false;
+  if (blob) { finalX = blob.x; finalY = blob.y; blobOK = true; }
+
   const hex = '#' + [r,g,b].map(c=>c.toString(16).padStart(2,'0')).join('');
-  const px_int = Math.round(x), py_int = Math.round(y);
+  const px_int = Math.round(finalX), py_int = Math.round(finalY);
+  const radioAprox = blob ? Math.round(Math.sqrt(blob.area)) : '?';
+
+  // Mensaje según éxito de detección
+  const msgOK = `<span style="color:var(--green)"><b>✓ OBJETIVO FIJADO</b></span> ·
+    blob detectado (radio ≈ ${radioAprox}px). El sistema lo seguirá en modo lock-on.`;
+  const msgWarn = `<span style="color:var(--yellow)"><b>⚠ Color capturado, pero no se detectó un blob claro</b></span><br>
+    El sistema usará la posición del click. Probá hacer click justo en el centro de la pelota,
+    o verificá que el color contraste bien con el fondo.`;
 
   if (modo === 'cam') {
     camPreset = '__custom__';
-    camLockOn = { x, y };
+    camLockOn = { x: finalX, y: finalY };
     camDatos = { t: [], x: [], y: [] };
     camStartTime = performance.now() / 1000;
-    // Feedback visual en el panel de calibración
     document.getElementById('cam-color-sample').style.background = hex;
     document.getElementById('cam-color-hsv').textContent =
       `HSV(${h},${s},${v}) · H[${range.hMin}-${range.hMax}]`;
-    document.getElementById('cam-lockon-pos').textContent = `(${px_int}, ${py_int})`;
-    document.getElementById('cam-calib-msg').innerHTML =
-      '<span style="color:var(--green)"><b>✓ OBJETIVO FIJADO</b></span> · El sistema sigue este objeto en modo lock-on. Si se pierde, hacé click de nuevo sobre la pelota.';
+    document.getElementById('cam-lockon-pos').textContent =
+      `(${px_int}, ${py_int})${blobOK ? ' ✓' : ''}`;
+    document.getElementById('cam-calib-msg').innerHTML = blobOK ? msgOK : msgWarn;
   } else {
     vidPreset = '__custom__';
-    vidLockOn = { x, y };
+    vidLockOn = { x: finalX, y: finalY };
     vidDatos = { t: [], x: [], y: [] };
     document.getElementById('vid-color-sample').style.background = hex;
     document.getElementById('vid-color-hsv').textContent =
       `HSV(${h},${s},${v}) · H[${range.hMin}-${range.hMax}]`;
-    document.getElementById('vid-lockon-pos').textContent = `(${px_int}, ${py_int})`;
-    document.getElementById('vid-calib-msg').innerHTML =
-      '<span style="color:var(--green)"><b>✓ OBJETIVO FIJADO</b></span> · Reproducí el video con ▶ Reproducir y analizar para empezar el seguimiento.';
+    document.getElementById('vid-lockon-pos').textContent =
+      `(${px_int}, ${py_int})${blobOK ? ' ✓' : ''}`;
+    document.getElementById('vid-calib-msg').innerHTML = blobOK ? msgOK : msgWarn;
+
+    // Dibujar el blob detectado en el overlay para feedback visual inmediato
+    const oW = overlay.clientWidth, oH = overlay.clientHeight;
+    overlay.width = oW; overlay.height = oH;
+    const octx = overlay.getContext('2d');
+    octx.clearRect(0, 0, oW, oH);
+    if (blob) {
+      const cx = blob.x / W * oW;
+      const cy = blob.y / H * oH;
+      const radPx = Math.sqrt(blob.area) * (oW / W);
+      octx.strokeStyle = '#facc15'; octx.lineWidth = 3;
+      octx.beginPath(); octx.arc(cx, cy, radPx + 4, 0, Math.PI*2); octx.stroke();
+      octx.fillStyle = '#ef4444';
+      octx.beginPath(); octx.arc(cx, cy, 4, 0, Math.PI*2); octx.fill();
+    }
   }
+}
+
+// Funciones para marcar inicio/fin del recorte desde el video pausado
+function marcarInicioVideo() {
+  const video = document.getElementById('vid-video');
+  document.getElementById('vid-t-ini').value = video.currentTime.toFixed(2);
+}
+function marcarFinVideo() {
+  const video = document.getElementById('vid-video');
+  document.getElementById('vid-t-fin').value = video.currentTime.toFixed(2);
 }
 
 function limpiarLockOnCamara() {
