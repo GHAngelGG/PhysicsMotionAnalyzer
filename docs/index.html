@@ -308,58 +308,69 @@
   <div class="grid2">
     <div>
       <div class="card" style="margin-bottom:14px">
-        <div class="card-title">Cargar video</div>
-        <input type="file" id="vid-file" accept="video/*" onchange="cargarVideo(event)" style="margin-bottom:8px;color:var(--text)">
-        <div id="vid-info" style="font-size:0.82rem;color:var(--muted);margin-bottom:6px">(ningún archivo seleccionado)</div>
+        <div class="card-title">📁 Paso 1: Cargar video</div>
+        <input type="file" id="vid-file" accept="video/*" onchange="cargarVideo(event)" style="display:none">
+        <button class="btn" onclick="document.getElementById('vid-file').click()" style="background:var(--accent);color:#fff;width:100%;padding:12px;font-size:0.95rem;font-weight:600;margin-bottom:8px">
+          📂 Seleccionar archivo de video…
+        </button>
+        <div id="vid-info" style="font-size:0.82rem;color:var(--muted);margin-bottom:6px;padding:8px 10px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)">(ningún archivo seleccionado)</div>
 
-        <label>Color preset</label>
-        <div class="seg">
-          <div class="seg-btn active" onclick="setVidPreset('Naranja',this)">🟠 Naranja</div>
-          <div class="seg-btn" onclick="setVidPreset('Rojo',this)">🔴 Rojo</div>
-          <div class="seg-btn" onclick="setVidPreset('Verde',this)">🟢 Verde</div>
-          <div class="seg-btn" onclick="setVidPreset('Azul',this)">🔵 Azul</div>
-        </div>
-
-        <label>Tipo de movimiento</label>
-        <div class="seg">
-          <div class="seg-btn" onclick="setVidTipo('MRU',this)">MRU</div>
-          <div class="seg-btn active" onclick="setVidTipo('MRUV',this)">MRUV</div>
-          <div class="seg-btn" onclick="setVidTipo('Caída Libre',this)">Caída Libre</div>
-        </div>
-
-        <label>Calibración (píxeles por metro)</label>
-        <input type="number" id="vid-ppm" value="100" step="10">
-
-        <div style="background:#3a2a10;border:1px solid var(--yellow);border-radius:8px;padding:10px 14px;margin-top:14px">
-          <div style="font-size:0.82rem;color:var(--yellow);font-weight:600;margin-bottom:6px">✂ Recorte (segundos) — IMPORTANTE</div>
-          <div style="font-size:0.78rem;color:#fde68a;margin-bottom:8px;line-height:1.4">
-            Analizá solo el tramo donde la pelota se mueve realmente. Si incluís partes quietas, el error sube mucho.
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <label style="margin:0;color:#fde68a;font-size:0.78rem">Inicio:</label>
-            <input type="number" id="vid-t-ini" value="0" step="0.1" min="0" style="width:70px;padding:4px 8px;font-size:0.85rem">
-            <button class="btn btn-outline" style="padding:4px 10px;font-size:0.75rem" onclick="marcarInicioVideo()">📍 Marcar aquí</button>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
-            <label style="margin:0;color:#fde68a;font-size:0.78rem">&nbsp;&nbsp;&nbsp;Fin:</label>
-            <input type="number" id="vid-t-fin" value="0" step="0.1" min="0" style="width:70px;padding:4px 8px;font-size:0.85rem">
-            <button class="btn btn-outline" style="padding:4px 10px;font-size:0.75rem" onclick="marcarFinVideo()">📍 Marcar aquí</button>
-            <span style="font-size:0.72rem;color:var(--muted)">(0 = al final)</span>
-          </div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:6px;font-style:italic">
-            💡 Pausá el video en el momento exacto y presioná "Marcar aquí" para capturar ese segundo.
-          </div>
-        </div>
-
-        <button class="btn" onclick="abrirCalibrador('vid')" id="vid-btn-calibrador" disabled style="background:var(--accent2);color:#fff;width:100%;padding:14px;font-size:0.95rem;font-weight:700;margin-top:14px">
+        <div class="card-title" style="margin-top:14px">🎯 Paso 2: Fijar el objeto + marcar tramo</div>
+        <button class="btn" onclick="abrirCalibrador('vid')" id="vid-btn-calibrador" disabled style="background:var(--accent2);color:#fff;width:100%;padding:14px;font-size:0.95rem;font-weight:700;opacity:0.4;cursor:not-allowed">
           🎯 Abrir Calibrador Visual
         </button>
         <div style="margin-top:6px;font-size:0.78rem;color:var(--muted);line-height:1.5">
-          Igual al de la app de escritorio: navegá frame por frame, hacé click sobre la pelota para fijarla, y marcá visualmente inicio/fin.
+          Navegá frame por frame, click sobre la pelota para fijar su color, marcá inicio/fin del análisis.
         </div>
 
-        <div class="btn-row" style="margin-top:14px">
-          <button class="btn btn-green" onclick="reproducirYAnalizar()">▶ Reproducir y analizar</button>
+        <div class="card-title" style="margin-top:18px">⚡ Paso 3: Tipo de movimiento</div>
+        <div class="seg">
+          <div class="seg-btn" onclick="setVidTipo('MRU',this)">→ MRU</div>
+          <div class="seg-btn active" onclick="setVidTipo('MRUV',this)">↗ MRUV</div>
+          <div class="seg-btn" onclick="setVidTipo('Caída Libre',this)">↓ Caída Libre</div>
+        </div>
+
+        <div class="card-title" style="margin-top:18px">📐 Paso 4: Calibración (opcional)</div>
+        <label>Píxeles por metro:</label>
+        <input type="number" id="vid-ppm" value="100" step="10">
+        <div style="font-size:0.75rem;color:var(--yellow);margin-top:4px">💡 Dejá 100 si no estás seguro.</div>
+
+        <!-- Recorte manual (opcional, escondido en details) -->
+        <details style="margin-top:14px">
+          <summary style="cursor:pointer;color:var(--muted);font-size:0.82rem">✂ Recorte manual (avanzado)</summary>
+          <div style="background:#3a2a10;border:1px solid var(--yellow);border-radius:8px;padding:10px 14px;margin-top:8px">
+            <div style="font-size:0.75rem;color:#fde68a;margin-bottom:6px;line-height:1.4">
+              Si no usaste el Calibrador, podés definir los segundos acá manualmente.
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <label style="margin:0;color:#fde68a;font-size:0.78rem">Inicio:</label>
+              <input type="number" id="vid-t-ini" value="0" step="0.1" min="0" style="width:70px;padding:4px 8px;font-size:0.85rem">
+              <button class="btn btn-outline" style="padding:4px 10px;font-size:0.75rem" onclick="marcarInicioVideo()">📍 Aquí</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+              <label style="margin:0;color:#fde68a;font-size:0.78rem">Fin:</label>
+              <input type="number" id="vid-t-fin" value="0" step="0.1" min="0" style="width:70px;padding:4px 8px;font-size:0.85rem">
+              <button class="btn btn-outline" style="padding:4px 10px;font-size:0.75rem" onclick="marcarFinVideo()">📍 Aquí</button>
+              <span style="font-size:0.72rem;color:var(--muted)">(0 = final)</span>
+            </div>
+          </div>
+        </details>
+
+        <!-- Preset color (oculto, lo maneja el calibrador) -->
+        <div style="display:none">
+          <div class="seg">
+            <div class="seg-btn active" onclick="setVidPreset('Naranja',this)">🟠</div>
+            <div class="seg-btn" onclick="setVidPreset('Rojo',this)">🔴</div>
+            <div class="seg-btn" onclick="setVidPreset('Verde',this)">🟢</div>
+            <div class="seg-btn" onclick="setVidPreset('Azul',this)">🔵</div>
+          </div>
+        </div>
+
+        <div class="card-title" style="margin-top:18px">▶ Paso 5: Analizar</div>
+        <div class="btn-row">
+          <button class="btn btn-green" onclick="reproducirYAnalizar()" style="flex:1;padding:12px">▶ Reproducir y analizar</button>
+        </div>
+        <div class="btn-row" style="margin-top:6px">
           <button class="btn btn-outline" onclick="pausarVideo()">⏸ Pausar</button>
           <button class="btn btn-outline" onclick="reiniciarVideo()">⟳ Reiniciar</button>
         </div>
