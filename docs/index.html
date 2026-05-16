@@ -173,7 +173,6 @@
   <div class="tab" onclick="switchTab('video', event)">📁 Video</div>
   <div class="tab" onclick="switchTab('sim', event)">🧪 Simulador</div>
   <div class="tab" onclick="switchTab('solver', event)">🧮 Solucionador</div>
-  <div class="tab" onclick="switchTab('validator', event)">📊 Validador</div>
   <div class="tab" onclick="switchTab('qr', event)">📱 QR</div>
 </nav>
 
@@ -277,8 +276,22 @@
         <canvas id="cam-process" style="display:none"></canvas>
 
         <div style="height:14px"></div>
-        <div class="card-title">Trayectoria capturada</div>
-        <div class="chart-wrap"><canvas id="cam-chart-x"></canvas></div>
+        <div class="card-title">🎯 Calibración del objetivo</div>
+        <div id="cam-calib-info" style="background:var(--surface2);border-radius:8px;padding:14px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <span style="font-size:0.82rem;color:var(--muted)">Color capturado:</span>
+            <span id="cam-color-sample" style="display:inline-block;width:36px;height:24px;background:#444;border-radius:4px;border:1px solid var(--border)"></span>
+            <span id="cam-color-hsv" style="font-family:'Courier New',monospace;font-size:0.78rem;color:var(--muted)">sin fijar</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <span style="font-size:0.82rem;color:var(--muted)">Posición fijada:</span>
+            <span id="cam-lockon-pos" style="font-family:'Courier New',monospace;font-size:0.85rem;color:var(--accent2);font-weight:600">—</span>
+          </div>
+          <div id="cam-calib-msg" style="font-size:0.82rem;color:var(--muted);font-style:italic;line-height:1.5">
+            👆 Hacé <b>click sobre la pelota</b> en el video para fijarla. El sistema captura su color HSV y la sigue específicamente (modo lock-on).
+          </div>
+          <button class="btn btn-outline" onclick="limpiarLockOnCamara()" style="margin-top:10px;font-size:0.8rem;padding:6px 14px">✕ Quitar fijación</button>
+        </div>
       </div>
     </div>
   </div>
@@ -349,8 +362,22 @@
         <canvas id="vid-process" style="display:none"></canvas>
 
         <div style="height:14px"></div>
-        <div class="card-title">Trayectoria capturada</div>
-        <div class="chart-wrap"><canvas id="vid-chart-x"></canvas></div>
+        <div class="card-title">🎯 Calibración del objetivo</div>
+        <div id="vid-calib-info" style="background:var(--surface2);border-radius:8px;padding:14px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <span style="font-size:0.82rem;color:var(--muted)">Color capturado:</span>
+            <span id="vid-color-sample" style="display:inline-block;width:36px;height:24px;background:#444;border-radius:4px;border:1px solid var(--border)"></span>
+            <span id="vid-color-hsv" style="font-family:'Courier New',monospace;font-size:0.78rem;color:var(--muted)">sin fijar</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <span style="font-size:0.82rem;color:var(--muted)">Posición fijada:</span>
+            <span id="vid-lockon-pos" style="font-family:'Courier New',monospace;font-size:0.85rem;color:var(--accent2);font-weight:600">—</span>
+          </div>
+          <div id="vid-calib-msg" style="font-size:0.82rem;color:var(--muted);font-style:italic;line-height:1.5">
+            👆 <b>Pausá el video</b> en un frame donde se vea bien la pelota → <b>click</b> sobre ella para fijar el objetivo y empezar el seguimiento.
+          </div>
+          <button class="btn btn-outline" onclick="limpiarLockOnVideo()" style="margin-top:10px;font-size:0.8rem;padding:6px 14px">✕ Quitar fijación</button>
+        </div>
       </div>
     </div>
   </div>
@@ -416,20 +443,11 @@
       </div>
     </div>
 
-    <!-- Gráficas -->
+    <!-- Animación -->
     <div>
       <div class="card">
-        <!-- Animación -->
         <div class="card-title" style="margin-bottom:8px">Animación <span class="live-dot" id="anim-dot" style="display:none"></span></div>
-        <canvas id="anim-canvas" class="anim-canvas"></canvas>
-
-        <div style="height:12px"></div>
-        <div class="card-title">x(t) — Posición</div>
-        <div class="chart-wrap"><canvas id="chart-x"></canvas></div>
-        <div class="card-title">v(t) — Velocidad</div>
-        <div class="chart-wrap"><canvas id="chart-v"></canvas></div>
-        <div class="card-title">a(t) — Aceleración</div>
-        <div class="chart-wrap"><canvas id="chart-a"></canvas></div>
+        <canvas id="anim-canvas" class="anim-canvas" style="height:300px"></canvas>
       </div>
     </div>
   </div>
@@ -468,72 +486,11 @@
         <div class="card-title">Resultado</div>
         <div id="solver-result-badge"></div>
         <div class="result-box" id="solver-result"></div>
-
-        <div style="height:16px"></div>
-        <div class="card-title">Gráfica de posición</div>
-        <div class="chart-wrap"><canvas id="solver-chart"></canvas></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════ VALIDADOR ═══════════════════ -->
-<div id="tab-validator" class="page">
-  <h2>Validador Físico</h2>
-  <p class="desc">Ingresa posiciones experimentales (separadas por comas) y compara con la curva teórica.</p>
-
-  <div class="grid2">
-    <div>
-      <div class="card">
-        <div class="card-title">Tipo de movimiento</div>
-        <div class="seg">
-          <div class="seg-btn active" onclick="setValTipo('MRU',this)">MRU</div>
-          <div class="seg-btn" onclick="setValTipo('MRUV',this)">MRUV</div>
-          <div class="seg-btn" onclick="setValTipo('Caída Libre',this)">Caída Libre</div>
-        </div>
-
-        <label>Posiciones experimentales x (m), separadas por coma</label>
-        <textarea class="textarea-data" id="val-xexp" placeholder="0, 1.02, 2.05, 3.1, 3.98, 5.03, 6.0">0, 1.02, 2.05, 3.1, 3.98, 5.03, 6.0</textarea>
-
-        <label>Intervalo de tiempo Δt entre muestras (s)</label>
-        <input type="number" id="val-dt" value="0.2" step="0.05" min="0.01">
-
-        <label>x₀ inicial (dejar 0 para estimación automática)</label>
-        <input type="number" id="val-x0" value="0">
-
-        <label>v₀ inicial (dejar 0 para estimación automática)</label>
-        <input type="number" id="val-v0" value="0">
-
-        <div id="val-a-row">
-          <label>Aceleración a (dejar 0 para estimación automática)</label>
-          <input type="number" id="val-a" value="0">
-        </div>
-
-        <div class="btn-row">
-          <button class="btn btn-primary" onclick="runValidator()">📊 Validar</button>
-          <button class="btn btn-outline" onclick="clearValidator()">✕ Limpiar</button>
-        </div>
-
-        <div id="val-error" class="error-box" style="display:none"></div>
-      </div>
-    </div>
-
-    <div>
-      <div class="card" id="val-result-card" style="display:none">
-        <div class="card-title">Comparación: Experimental vs Teórico</div>
-        <div class="chart-wrap" style="height:260px"><canvas id="val-chart"></canvas></div>
-
-        <div class="stat-grid" style="margin-top:14px">
-          <div class="stat"><div class="stat-label">Error medio</div><div class="stat-value" id="val-err-medio">—</div></div>
-          <div class="stat red"><div class="stat-label">Error máximo</div><div class="stat-value" id="val-err-max">—</div></div>
-          <div class="stat green"><div class="stat-label">Ajuste</div><div class="stat-value" id="val-ajuste">—</div></div>
-        </div>
-
-        <div class="result-box" style="margin-top:14px" id="val-params"></div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <script>
 // ══════════════════════════════════════════════
@@ -541,7 +498,6 @@
 // ══════════════════════════════════════════════
 let simTipo = 'MRU';
 let solverTipo = 'MRU';
-let valTipo = 'MRU';
 let charts = {};
 let animFrame = null;
 let animData = null;
@@ -687,11 +643,6 @@ function runSim() {
   const classes = { 'MRU': 'badge-MRU', 'MRUV': 'badge-MRUV', 'Caída Libre': 'badge-libre' };
   document.getElementById('sim-tipo-badge').innerHTML = `<span class="badge-tipo ${classes[tipo]||'badge-MRU'}">Clasificado: ${tipo}</span>`;
 
-  // Gráficas
-  makeChart('chart-x', 'x(t) [m]', '#4f8ef7', t, signal);
-  makeChart('chart-v', 'v(t) [m/s]', '#10b981', t, vArr);
-  makeChart('chart-a', 'a(t) [m/s²]', '#f59e0b', t, aArr);
-
   // Animación
   animData = { t, signal, tipo: simTipo, x0, v0 };
   animIdx = 0;
@@ -769,7 +720,6 @@ function clearSim() {
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
   document.getElementById('anim-dot').style.display = 'none';
   document.getElementById('sim-stats').style.display = 'none';
-  ['chart-x','chart-v','chart-a'].forEach(id => { if(charts[id]){charts[id].destroy();delete charts[id];} });
   const canvas = document.getElementById('anim-canvas');
   canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 }
@@ -860,16 +810,6 @@ function runSolver() {
   const classes = { 'MRU': 'badge-MRU', 'MRUV': 'badge-MRUV', 'Caída Libre': 'badge-libre' };
   document.getElementById('solver-result-badge').innerHTML = `<span class="badge-tipo ${classes[solverTipo]}">${solverTipo}</span>`;
 
-  // Graficar x(t)
-  const t_total = result.t || 5;
-  const n = 80;
-  const tArr = linspace(0, t_total, n);
-  let xArr;
-  if (solverTipo === 'MRU') xArr = posicionMRU(result.x0||0, result.v||0, tArr);
-  else if (solverTipo === 'Caída Libre') xArr = caidaLibre(result.y0||0, result.v0||0, tArr);
-  else xArr = posicionMRUV(result.x0||0, result.v0||0, result.a||0, tArr);
-
-  makeChart('solver-chart', 'x(t) [m]', '#4f8ef7', tArr, xArr);
 }
 
 function clearSolver() {
@@ -950,92 +890,6 @@ function resolverCaidaLibre({y0, v0, t, y_final}) {
   }
   res.v_final = (res.v0||0) - G*(res.t||0);
   return res;
-}
-
-// ══════════════════════════════════════════════
-//  VALIDADOR
-// ══════════════════════════════════════════════
-function setValTipo(tipo, el) {
-  valTipo = tipo;
-  document.querySelectorAll('#tab-validator .seg-btn').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('val-a-row').style.display = tipo === 'MRU' ? 'none' : 'block';
-  document.getElementById('val-result-card').style.display = 'none';
-}
-
-function runValidator() {
-  document.getElementById('val-error').style.display = 'none';
-  const raw = document.getElementById('val-xexp').value;
-  const xExp = raw.split(',').map(s=>parseFloat(s.trim())).filter(v=>!isNaN(v));
-  if (xExp.length < 3) {
-    document.getElementById('val-error').textContent = '⚠ Ingresa al menos 3 puntos separados por coma.';
-    document.getElementById('val-error').style.display = 'block';
-    return;
-  }
-  const dt = parseFloat(document.getElementById('val-dt').value) || 0.2;
-  const n = xExp.length;
-  const t = Array.from({length:n},(_,i)=>i*dt);
-
-  // Estimar parámetros
-  let x0 = parseFloat(document.getElementById('val-x0').value)||0;
-  let v0 = parseFloat(document.getElementById('val-v0').value)||0;
-  let a  = parseFloat(document.getElementById('val-a').value) ||0;
-
-  // Si todos son cero → estimar
-  if (x0===0 && v0===0 && a===0) {
-    x0 = xExp[0];
-    v0 = n>1 ? (xExp[1]-xExp[0])/dt : 0;
-    if (n>3) {
-      const aArr = segundaDerivada(xExp, t);
-      a = aArr.slice(1,-1).reduce((s,v)=>s+v,0)/(aArr.length-2);
-    }
-  }
-
-  // Teórico
-  let xTeo;
-  if (valTipo==='MRU') xTeo = posicionMRU(x0, v0, t);
-  else if (valTipo==='Caída Libre') xTeo = caidaLibre(x0, v0, t);
-  else xTeo = posicionMRUV(x0, v0, a, t);
-
-  // Errores
-  const eps = 1e-9;
-  const errors = xExp.map((ex,i)=>Math.abs(ex-xTeo[i])/(Math.abs(xTeo[i])||eps)*100);
-  const errMedio = errors.reduce((s,v)=>s+v,0)/errors.length;
-  const errMax = Math.max(...errors);
-  const ajuste = Math.max(0, 100 - errMedio);
-
-  document.getElementById('val-result-card').style.display = 'block';
-  document.getElementById('val-err-medio').textContent = errMedio.toFixed(2)+'%';
-  document.getElementById('val-err-max').textContent = errMax.toFixed(2)+'%';
-  document.getElementById('val-ajuste').textContent = ajuste.toFixed(1)+'%';
-
-  if (charts['val-chart']) charts['val-chart'].destroy();
-  const ctx = document.getElementById('val-chart').getContext('2d');
-  charts['val-chart'] = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: t.map(v=>v.toFixed(2)),
-      datasets: [
-        { label:'Experimental', data:xExp, borderColor:'#4f8ef7', backgroundColor:'#4f8ef722', borderWidth:2, pointRadius:4, tension:0.2 },
-        { label:'Teórico', data:xTeo, borderColor:'#ef4444', backgroundColor:'transparent', borderWidth:2, borderDash:[6,3], pointRadius:0, tension:0.3 }
-      ]
-    },
-    options: { ...JSON.parse(JSON.stringify(CHART_DEFAULTS)), responsive:true, maintainAspectRatio:false }
-  });
-
-  document.getElementById('val-params').innerHTML = `
-    <div class="result-row"><span class="result-key">Parámetros usados</span><span class="result-val"></span></div>
-    <div class="result-row"><span class="result-key">x₀ (m)</span><span class="result-val">${x0.toFixed(4)}</span></div>
-    <div class="result-row"><span class="result-key">v₀ (m/s)</span><span class="result-val">${v0.toFixed(4)}</span></div>
-    ${valTipo!=='MRU'?`<div class="result-row"><span class="result-key">a (m/s²)</span><span class="result-val">${a.toFixed(4)}</span></div>`:''}
-    <div class="result-row"><span class="result-key">N puntos</span><span class="result-val">${n}</span></div>
-  `;
-}
-
-function clearValidator() {
-  document.getElementById('val-result-card').style.display = 'none';
-  document.getElementById('val-error').style.display = 'none';
-  if (charts['val-chart']) { charts['val-chart'].destroy(); delete charts['val-chart']; }
 }
 
 // ══════════════════════════════════════════════
@@ -1264,14 +1118,35 @@ function onClickVideoOverlay(ev, modo) {
   // Convertir a coords del proc canvas
   const procId = modo === 'cam' ? 'cam-process' : 'vid-process';
   const proc = document.getElementById(procId);
+
+  // Si es video y el proc canvas no tiene tamaño aún (video pausado al inicio),
+  // forzar un draw del frame actual
+  if (modo === 'vid' && (proc.width === 0 || proc.width === 300)) {
+    const video = document.getElementById('vid-video');
+    if (video.videoWidth) {
+      const W = 320, H = Math.round(320 * video.videoHeight / video.videoWidth);
+      proc.width = W; proc.height = H;
+      proc.getContext('2d').drawImage(video, 0, 0, W, H);
+    }
+  }
+
   const W = proc.width, H = proc.height;
+  if (W === 0 || H === 0) return;
   const x = px / overlay.clientWidth * W;
   const y = py / overlay.clientHeight * H;
 
-  // Tomar HSV del píxel clicado para auto-ajustar el preset
+  // Tomar HSV en un parche 5x5 (más robusto que 1 píxel)
   const ctx = proc.getContext('2d');
-  const data = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data;
-  const [h, s, v] = rgbToHsv(data[0], data[1], data[2]);
+  const px1 = Math.max(0, Math.round(x) - 2);
+  const py1 = Math.max(0, Math.round(y) - 2);
+  const w5 = Math.min(5, W - px1);
+  const h5 = Math.min(5, H - py1);
+  const data = ctx.getImageData(px1, py1, w5, h5).data;
+  // Promedio del parche
+  let rs=0, gs=0, bs=0, ct=0;
+  for (let i = 0; i < data.length; i += 4) { rs+=data[i]; gs+=data[i+1]; bs+=data[i+2]; ct++; }
+  const r = Math.round(rs/ct), g = Math.round(gs/ct), b = Math.round(bs/ct);
+  const [h, s, v] = rgbToHsv(r, g, b);
   const range = {
     hMin: Math.max(0, h - 10),  hMax: Math.min(179, h + 10),
     sMin: Math.max(0, s - 60),  sMax: Math.min(255, s + 60),
@@ -1279,16 +1154,55 @@ function onClickVideoOverlay(ev, modo) {
   };
   HSV_PRESETS['__custom__'] = range;
 
+  // Color hex para mostrar
+  const hex = '#' + [r,g,b].map(c=>c.toString(16).padStart(2,'0')).join('');
+  const px_int = Math.round(x), py_int = Math.round(y);
+
   if (modo === 'cam') {
     camPreset = '__custom__';
     camLockOn = { x, y };
     camDatos = { t: [], x: [], y: [] };
     camStartTime = performance.now() / 1000;
+    // Feedback visual en el panel de calibración
+    document.getElementById('cam-color-sample').style.background = hex;
+    document.getElementById('cam-color-hsv').textContent =
+      `HSV(${h},${s},${v}) · H[${range.hMin}-${range.hMax}]`;
+    document.getElementById('cam-lockon-pos').textContent = `(${px_int}, ${py_int})`;
+    document.getElementById('cam-calib-msg').innerHTML =
+      '<span style="color:var(--green)"><b>✓ OBJETIVO FIJADO</b></span> · El sistema sigue este objeto en modo lock-on. Si se pierde, hacé click de nuevo sobre la pelota.';
   } else {
     vidPreset = '__custom__';
     vidLockOn = { x, y };
     vidDatos = { t: [], x: [], y: [] };
+    document.getElementById('vid-color-sample').style.background = hex;
+    document.getElementById('vid-color-hsv').textContent =
+      `HSV(${h},${s},${v}) · H[${range.hMin}-${range.hMax}]`;
+    document.getElementById('vid-lockon-pos').textContent = `(${px_int}, ${py_int})`;
+    document.getElementById('vid-calib-msg').innerHTML =
+      '<span style="color:var(--green)"><b>✓ OBJETIVO FIJADO</b></span> · Reproducí el video con ▶ Reproducir y analizar para empezar el seguimiento.';
   }
+}
+
+function limpiarLockOnCamara() {
+  camLockOn = null;
+  camDatos = { t: [], x: [], y: [] };
+  document.getElementById('cam-color-sample').style.background = '#444';
+  document.getElementById('cam-color-hsv').textContent = 'sin fijar';
+  document.getElementById('cam-lockon-pos').textContent = '—';
+  document.getElementById('cam-calib-msg').innerHTML =
+    '👆 Hacé <b>click sobre la pelota</b> en el video para fijarla.';
+}
+
+function limpiarLockOnVideo() {
+  vidLockOn = null;
+  vidDatos = { t: [], x: [], y: [] };
+  document.getElementById('vid-color-sample').style.background = '#444';
+  document.getElementById('vid-color-hsv').textContent = 'sin fijar';
+  document.getElementById('vid-lockon-pos').textContent = '—';
+  document.getElementById('vid-calib-msg').innerHTML =
+    '👆 <b>Pausá el video</b> y hacé click sobre la pelota.';
+  const overlay = document.getElementById('vid-overlay');
+  if (overlay) overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
 }
 
 function actualizarStatsCamara() {
@@ -1325,12 +1239,6 @@ function actualizarStatsCamara() {
 
   document.getElementById('cam-tipo-badge').innerHTML =
     `<span class="badge-tipo badge-${camTipo==='MRU'?'MRU':camTipo==='MRUV'?'MRUV':'libre'}">Tipo: ${camTipo}</span>`;
-
-  // Gráfica
-  if (n % 5 === 0) {  // refrescar cada 5 frames
-    makeChart('cam-chart-x', sig === y ? 'y(t) [m]' : 'x(t) [m]',
-              '#4f8ef7', t, sig);
-  }
 }
 
 // ══════════════════════════════════════════════
@@ -1485,11 +1393,6 @@ function actualizarStatsVideo() {
 
   document.getElementById('vid-tipo-badge').innerHTML =
     `<span class="badge-tipo badge-${vidTipo==='MRU'?'MRU':vidTipo==='MRUV'?'MRUV':'libre'}">Tipo: ${vidTipo}</span>`;
-
-  if (n % 5 === 0) {
-    makeChart('vid-chart-x', sig === y ? 'y(t) [m]' : 'x(t) [m]',
-              '#4f8ef7', t, sig);
-  }
 }
 
 // ══════════════════════════════════════════════
