@@ -31,3 +31,6 @@ videos_prueba/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Videos de prueba (se generan con: python tools/generar_videos_prueba.py)
+videos_prueba/
