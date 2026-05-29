@@ -34,3 +34,4 @@ desktop.ini
 
 # Videos de prueba (se generan con: python tools/generar_videos_prueba.py)
 videos_prueba/
+_tmp_capturas/
