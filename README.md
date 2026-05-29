@@ -2,32 +2,29 @@
 
 **Sistema Inteligente de Monitoreo de Movimiento y Análisis Físico en Tiempo Real**
 
-> Proyecto académico de Física 1 — Universidad Mariano Gálvez de Guatemala
-> Facultad de Ingeniería en Sistemas · Plan Fin de Semana · Campus Central
-
 [![Made with Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.13-green.svg)](https://opencv.org/)
 [![License](https://img.shields.io/badge/uso-académico-orange.svg)](#licencia)
 
 ---
 
-## 🌐 Versión Web (online)
+## Versión Web (online)
 
 **Probala desde tu celular o PC sin instalar nada:**
 
-🔗 **https://ghangelgg.github.io/PhysicsMotionAnalyzer/**
+**https://ghangelgg.github.io/PhysicsMotionAnalyzer/**
 
 La versión web tiene 6 modos:
-- 📷 **Cámara en vivo** — webcam o cámara del celular con detección de color
-- 📁 **Análisis de Video** — subí un MP4 y analizalo frame por frame
-- 🧪 **Simulador** — generá datos sintéticos con animación
-- 🧮 **Solucionador** — calculadora de cinemática (despeja la incógnita)
-- 📊 **Validador** — comparar mediciones experimentales contra teoría
-- 📱 **QR** — generar código QR para compartir el link
+- **Cámara en vivo** — webcam o cámara del celular con detección de color
+- **Análisis de Video** — subí un MP4 y analizalo frame por frame
+- **Simulador** — generá datos sintéticos con animación
+- **Solucionador** — calculadora de cinemática (despeja la incógnita)
+- **Validador** — comparar mediciones experimentales contra teoría
+- **QR** — generar código QR para compartir el link
 
 ---
 
-## ✨ Características principales
+## Características principales
 
 ### Versión escritorio (Python + Tkinter)
 - **Tres modos de entrada**: video grabado, cámara en vivo, simulación física
@@ -48,7 +45,7 @@ La versión web tiene 6 modos:
 
 ---
 
-## 🚀 Cómo usar
+## Cómo usar
 
 ### Versión web
 Abrí la URL en tu celular o PC. Si vas a usar la cámara, dale permiso al navegador.
@@ -104,7 +101,7 @@ a[i] = (x[i+1] − 2·x[i] + x[i−1]) / Δt²
 
 ---
 
-## 📁 Estructura del proyecto
+## Estructura del proyecto
 
 ```
 PhysicsMotionAnalyzer/
@@ -147,20 +144,7 @@ PhysicsMotionAnalyzer/
     └── calibration.py           ← conversión píxeles ↔ metros
 ```
 
----
-
-## 🎓 Sobre el proyecto
-
-| | |
-|---|---|
-| **Asignatura** | Física 1 |
-| **Universidad** | Universidad Mariano Gálvez de Guatemala |
-| **Facultad** | Ingeniería en Sistemas (Plan Fin de Semana, Campus Central) |
-| **Fecha de entrega** | 30 de mayo de 2026 |
-
----
-
-## 🛠 Stack técnico
+## Stack técnico
 
 **Escritorio:** Python 3.14 · OpenCV 4.13 · NumPy 2.4 · SciPy 1.17 · Matplotlib 3.10 · Tkinter
 **Web:** HTML5 · JavaScript ES2022 · Chart.js · Canvas API · MediaDevices.getUserMedia
@@ -168,6 +152,3 @@ PhysicsMotionAnalyzer/
 
 ---
 
-## 📜 Licencia
-
-Uso académico / educativo.
