@@ -82,7 +82,9 @@ class VentanaPrincipal(tk.Tk):
         self._ultimo = None
 
         # Variables comunes
-        self.tipo_movimiento = tk.StringVar(value="MRUV")
+        # En VIDEO/CAMARA por defecto "Auto" (el clasificador 2D decide).
+        # En SIMULACION cambia a MRUV.
+        self.tipo_movimiento = tk.StringVar(value="Auto")
         self.color_preset    = tk.StringVar(value="Naranja")
         self.cam_idx         = tk.IntVar(value=0)
         self.ppm             = tk.DoubleVar(value=100.0)
@@ -393,9 +395,11 @@ class VentanaPrincipal(tk.Tk):
         tk.Label(cal, text="px/m", bg=self.C_PANEL,
                  fg=self.C_GRIS_LUZ, font=("Segoe UI", 8, "italic")).pack(side=tk.LEFT)
         tk.Label(
-            padre, text="💡 Dejá 100 si no estás seguro.",
+            padre,
+            text="💡 Dejá 100 y luego usá «⚙ Auto-calibrar con g=9.8»\n"
+                 "    después de Iniciar — el sistema lo ajusta solo.",
             font=("Segoe UI", 8), fg=self.C_NARANJA,
-            bg=self.C_PANEL,
+            bg=self.C_PANEL, justify="left",
         ).pack(anchor="w", padx=18, pady=(0, 10))
 
         # Botones de acción
@@ -455,6 +459,10 @@ class VentanaPrincipal(tk.Tk):
     def _construir_sidebar_simulacion(self, padre):
         self._sidebar_titulo(padre, "🧪 Simulación física",
                              "Physics simulator + solver")
+
+        # En simulación no tiene sentido "Auto" — forzamos un valor válido.
+        if self.tipo_movimiento.get() == "Auto":
+            self.tipo_movimiento.set("MRUV")
 
         # Paso 1: Tipo
         self._paso(padre, "1", "Tipo de movimiento", "Motion type")
@@ -532,11 +540,16 @@ class VentanaPrincipal(tk.Tk):
                  fg=self.C_GRIS_LUZ, bg=self.C_PANEL, anchor="w"
                  ).pack(anchor="w")
 
-    def _radios_tipo_movimiento(self, padre):
+    def _radios_tipo_movimiento(self, padre, incluir_auto=True):
         frm = tk.Frame(padre, bg=self.C_SECCION,
                        highlightbackground=self.C_BORDE, highlightthickness=1)
         frm.pack(fill=tk.X, padx=16, pady=4)
-        opciones = [
+        opciones = []
+        if incluir_auto:
+            opciones.append(
+                ("Auto", "✨  Auto-detectar  (recomendado)")
+            )
+        opciones += [
             ("MRU",         "→  MRU       (velocidad constante)"),
             ("MRUV",        "↗  MRUV     (aceleración constante)"),
             ("Caída Libre", "↓  Caída Libre  (g = 9.8 m/s²)"),
@@ -569,6 +582,12 @@ class VentanaPrincipal(tk.Tk):
                             self.C_ROJO_OSC, self.reiniciar, 0, 1)
         self._boton_pequeno(grid, "⤓  Exportar CSV", "#475569",
                             "#334155", self.exportar_csv, 1, 0, colspan=2)
+        # Auto-calibrar por gravedad: requiere haber analizado un video
+        # con caída libre. Re-escala px/m para que |a| ≈ 9.8 m/s².
+        self._boton_pequeno(grid, "⚙  Auto-calibrar con g=9.8",
+                            self.C_PURPURA, "#7c3aed",
+                            self.auto_calibrar_gravedad,
+                            2, 0, colspan=2)
 
     def _boton_grande(self, padre, texto, color, color_hover,
                       cmd, primario=False):
@@ -863,6 +882,70 @@ class VentanaPrincipal(tk.Tk):
         else:
             self._set_estado("✓  Calibración aplicada", self.C_VERDE)
 
+    def auto_calibrar_gravedad(self):
+        """
+        Re-calibra la conversión píxeles ↔ metros usando la gravedad
+        como referencia universal.
+
+        Idea: si el video muestra una caída libre, |a_y| medida tiene que
+        valer ~9.8 m/s². Si tu análisis dio, por ejemplo, |a| = 2.2 m/s²,
+        significa que la calibración actual sobre-estima distancias por un
+        factor de (2.2/9.8). Multiplicamos el px/m por (9.8 / |a_medida|)
+        para corregirlo y re-aplicamos el análisis.
+
+        Requisitos:
+          - Tener un análisis hecho (botón Iniciar ya corrió).
+          - La aceleración medida no debe ser nula.
+        """
+        if not self._ultimo:
+            messagebox.showinfo("Auto-calibrar",
+                "Primero corré un análisis de video con una caída libre.\n"
+                "(Pulsá ▶ Iniciar análisis.)")
+            return
+
+        a_med = abs(float(self._ultimo.get("a_prom", 0.0)))
+        if a_med < 0.1:
+            messagebox.showwarning("Auto-calibrar",
+                f"La aceleración medida es muy baja ({a_med:.3f} m/s²).\n"
+                "Asegurate de que el video muestre una caída real "
+                "(no algo casi quieto) y volvé a Iniciar antes de calibrar.")
+            return
+
+        try:
+            ppm_actual = float(self.ppm.get())
+        except Exception:
+            ppm_actual = 100.0
+
+        # Factor de corrección para los metros ya almacenados:
+        #   y_metros_correcto = y_pixels / ppm_nuevo
+        #   ppm_nuevo = ppm_actual * (a_med / g)
+        #   => y_metros_correcto = (y_pixels/ppm_actual) * (g/a_med)
+        # Por eso multiplicamos las listas por (g/a_med).
+        factor_ppm = a_med / kinematics.G       # para el ppm
+        ppm_nuevo  = ppm_actual * factor_ppm
+        factor_m   = kinematics.G / a_med       # para los metros guardados
+
+        # Mostrar diálogo de confirmación
+        msg = (
+            f"Aceleración actual: {a_med:.3f} m/s²\n"
+            f"Esperada (g):       9.800 m/s²\n\n"
+            f"Calibración actual:  {ppm_actual:.2f} px/m\n"
+            f"Calibración sugerida: {ppm_nuevo:.2f} px/m\n\n"
+            f"¿Aplicar la nueva calibración y re-analizar?"
+        )
+        if not messagebox.askyesno("Auto-calibrar con g=9.8", msg):
+            return
+
+        # Aplicar y re-escalar los datos ya capturados sin tener que re-procesar
+        self.ppm.set(round(ppm_nuevo, 2))
+        self.calib.set_ppm(ppm_nuevo)
+        if len(self.x_list) > 0:
+            self.x_list = [v * factor_m for v in self.x_list]
+            self.y_list = [v * factor_m for v in self.y_list]
+        self._actualizar_analisis()
+        self._set_estado(
+            f"✓  Auto-calibrado a {ppm_nuevo:.1f} px/m", self.C_PURPURA)
+
     def iniciar(self):
         if self.ejecutando:
             self.en_pausa = False
@@ -1044,39 +1127,74 @@ class VentanaPrincipal(tk.Tk):
     def _actualizar_analisis(self):
         if len(self.t_list) < 3:
             return
-        x = np.array(self.x_list, dtype=float)
-        y = np.array(self.y_list, dtype=float)
-        signal = x if np.var(x) >= np.var(y) else y
-        self._actualizar_todo(signal)
+        # El análisis 2D recibe AMBAS coordenadas y elige internamente.
+        self._actualizar_todo(None)
 
-    def _actualizar_todo(self, signal):
+    def _actualizar_todo(self, signal=None):
+        """
+        Análisis robusto:
+          1) Auto-detecta el tramo activo (descarta reposo) para no
+             diluir las métricas con frames donde la pelota está quieta.
+          2) Si el usuario eligió "Auto", usa el clasificador 2D para
+             decidir MRU/MRUV/Caída Libre.
+          3) Calcula la aceleración por AJUSTE CUADRÁTICO sobre el tramo
+             activo (mucho más estable que derivar dos veces datos ruidosos).
+          4) Calcula distancia recorrida solo sobre el tramo activo
+             (la "distancia útil" del movimiento).
+        """
         t = np.array(self.t_list, dtype=float)
         if len(t) < 3:
             return
 
-        v = kinematics.derivada_central(signal, t)
-        a = kinematics.segunda_derivada(signal, t)
-        v = kinematics.suavizar(v, window=5)
-        a = kinematics.suavizar(a, window=5)
+        x_full = np.array(self.x_list, dtype=float)
+        y_full = np.array(self.y_list, dtype=float)
 
-        # El usuario eligió tipo manual → lo respetamos
-        tipo = self.tipo_movimiento.get()
-        a_prom = float(np.nanmean(a)) if len(a) else 0.0
-        v_prom = float(np.nanmean(v)) if len(v) else 0.0
+        # ── 1) Tramo activo (sobre la coordenada con más varianza) ──
+        signal_full = x_full if np.var(x_full) >= np.var(y_full) else y_full
+        ini, fin = kinematics.tramo_activo(t, signal_full,
+                                            y=(y_full if signal_full is x_full else x_full))
+        t_a   = t[ini:fin]
+        x_a   = x_full[ini:fin]
+        y_a   = y_full[ini:fin]
+        sig_a = signal_full[ini:fin]
 
-        dist = kinematics.distancia_total(self.x_list, self.y_list)
-        t_total = float(t[-1] - t[0])
+        # ── 2) Clasificación ──
+        tipo_sel = self.tipo_movimiento.get()
+        info_clf = classifier.clasificar_movimiento_2d(t_a, x_a, y_a)
+        if tipo_sel == "Auto":
+            tipo = info_clf["tipo"]
+            etiqueta_tipo = f"{tipo}  ✨"   # marca que fue auto-detectado
+        else:
+            tipo = tipo_sel
+            etiqueta_tipo = tipo
 
+        # ── 3) Aceleración robusta por ajuste sobre tramo activo ──
+        # Para series derivadas y la gráfica seguimos usando el método numérico.
+        v_series = kinematics.derivada_central(sig_a, t_a)
+        a_series = kinematics.segunda_derivada(sig_a, t_a)
+        v_series = kinematics.suavizar(v_series, window=5)
+        a_series = kinematics.suavizar(a_series, window=5)
+
+        # a_prom para el KPI: usa ajuste cuadrático (más estable)
+        a_prom = info_clf["a_dominante"]
+        v_prom = info_clf["v_prom"]
+
+        # ── 4) Distancia y tiempo: sobre tramo activo ──
+        dist = kinematics.distancia_total(x_a.tolist(), y_a.tolist())
+        t_total = float(t_a[-1] - t_a[0]) if len(t_a) > 1 else 0.0
+
+        # ── 5) Validación vs teoría ──
         x_teo = None
+        err = float("nan")
         try:
-            res = validator.validar(tipo, t, signal)
+            res = validator.validar(tipo, t_a, sig_a)
             err = res["error_medio"]
             x_teo = res["x_teo"]
         except Exception:
-            err = float("nan")
+            pass
 
         def _set_kpis():
-            self.var_tipo.set(tipo)
+            self.var_tipo.set(etiqueta_tipo)
             self.var_vprom.set(f"{v_prom:.3f}")
             self.var_aprom.set(f"{a_prom:.3f}")
             self.var_dist.set(f"{dist:.3f}")
@@ -1084,15 +1202,17 @@ class VentanaPrincipal(tk.Tk):
             self.var_error.set(f"{err:.2f}" if not np.isnan(err) else "—")
 
         self.after(0, _set_kpis)
-        _t, _s, _v, _a, _xt = t, signal, v, a, x_teo
+        _t, _s, _v, _a, _xt = t_a, sig_a, v_series, a_series, x_teo
         self.after(0, lambda: self.panel_graf.actualizar(_t, _s, _v, _a, _xt))
 
         self._ultimo = {
-            "t": t, "x": np.array(self.x_list, dtype=float),
-            "y": np.array(self.y_list, dtype=float),
-            "signal": signal, "v": v, "a": a, "tipo": tipo,
+            "t": t_a, "x": x_a, "y": y_a,
+            "signal": sig_a, "v": v_series, "a": a_series, "tipo": tipo,
             "v_prom": v_prom, "a_prom": a_prom, "dist": dist,
             "t_total": t_total, "error": err,
+            "tramo": (ini, fin),
+            "n_total": int(len(t)),
+            "info_clf": info_clf,
         }
 
     # ─── SIMULACIÓN ───

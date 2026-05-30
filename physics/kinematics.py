@@ -181,6 +181,99 @@ def distancia_total(x, y=None):
     return float(np.sum(np.sqrt(dx ** 2 + dy ** 2)))
 
 
+def tramo_activo(t, x, y=None, umbral_rel=0.20, umbral_abs=0.30,
+                 min_len=5, margen=1):
+    """
+    Detecta el tramo continuo más largo donde el objeto realmente se mueve.
+
+    Idea: calculamos la velocidad instantánea, fijamos un umbral
+    (el mayor entre `umbral_abs` y `umbral_rel * v_max`) y encontramos
+    el segmento contiguo más extenso donde |v| supera ese umbral.
+    Esto descarta los tramos en reposo (pelota en la mano o en el piso)
+    que diluirían el promedio de aceleración.
+
+    Parámetros:
+        t (array-like): tiempos [s].
+        x (array-like): serie principal (1D, p. ej. la coordenada con
+            mayor varianza, típicamente Y para caída libre).
+        y (array-like | None): segunda coordenada opcional. Si se da,
+            la magnitud de velocidad usa sqrt(vx^2 + vy^2).
+        umbral_rel (float): fracción de la velocidad pico que cuenta
+            como "movimiento real" (0.2 = 20%).
+        umbral_abs (float): umbral mínimo absoluto [m/s] para que
+            videos muy lentos no se queden sin tramo.
+        min_len (int): número mínimo de muestras del tramo válido.
+        margen (int): muestras extra a ambos lados (clipped).
+
+    Retorna:
+        tuple (inicio, fin): índices [inicio, fin) del tramo activo.
+        Si no se detecta tramo válido, retorna (0, len(t)) — sea, todo.
+    """
+    t = np.asarray(t, dtype=float)
+    x = np.asarray(x, dtype=float)
+    if t.size < 4:
+        return 0, len(t)
+
+    vx = derivada_central(x, t)
+    if y is not None:
+        y = np.asarray(y, dtype=float)
+        vy = derivada_central(y, t)
+        v_mag = np.sqrt(vx ** 2 + vy ** 2)
+    else:
+        v_mag = np.abs(vx)
+
+    v_max = float(np.nanmax(v_mag)) if v_mag.size else 0.0
+    umbral = max(umbral_abs, umbral_rel * v_max)
+    activo = v_mag > umbral
+
+    # Run-length: tramo activo más largo
+    mejor_ini, mejor_fin, mejor_len = 0, len(t), 0
+    i = 0
+    while i < len(activo):
+        if activo[i]:
+            j = i
+            while j < len(activo) and activo[j]:
+                j += 1
+            if j - i > mejor_len:
+                mejor_len = j - i
+                mejor_ini, mejor_fin = i, j
+            i = j
+        else:
+            i += 1
+
+    if mejor_len < min_len:
+        return 0, len(t)
+
+    ini = max(0, mejor_ini - margen)
+    fin = min(len(t), mejor_fin + margen)
+    return ini, fin
+
+
+def aceleracion_por_ajuste(t, x):
+    """
+    Estima la aceleración mediante un ajuste cuadrático
+    x(t) ≈ x0 + v0·t + 0.5·a·t².
+
+    Mucho más robusto a ruido que la segunda derivada numérica
+    cuando se aplica sobre un tramo limpio (sin reposo).
+
+    Parámetros:
+        t (array-like): tiempos [s].
+        x (array-like): serie de posiciones [m].
+
+    Retorna:
+        float: aceleración estimada [m/s²]. NaN si no hay suficientes
+        puntos.
+    """
+    t = np.asarray(t, dtype=float)
+    x = np.asarray(x, dtype=float)
+    if t.size < 3 or x.size < 3:
+        return float("nan")
+    # Centramos el tiempo para mejorar el condicionamiento numérico
+    coef = np.polyfit(t - t[0], x, 2)
+    return float(2.0 * coef[0])
+
+
 def suavizar(signal, window=5):
     """
     Suaviza una señal 1D. Intenta usar scipy.signal.savgol_filter.
